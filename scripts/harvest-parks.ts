@@ -69,25 +69,44 @@ async function listAllParkCodes(
 
 // Full unit list WITHOUT an API key. central.nps.gov is the endpoint nps.gov's
 // own "Find a Park" UI calls; its `apikey` is a public site-key shipped in the
-// browser bundle (find-a-park.js), not a secret. Returns all ~666 NPS units
-// (code + fullName + designation; no latLong — coords need the keyed Data API).
+// browser bundle (find-a-park.js), not a secret. `select=geometry` adds a
+// GeoJSON Point {coordinates:[lng,lat]} so we get coords for GPS routing too.
 const CENTRAL_KEY = "KXuXrDdge2Csv0xbC01JhhNNaDGcmICX";
 
 async function listAllParkCodesNoKey(): Promise<
   Array<{ code: string; name: string; states: string[]; lat?: number; lng?: number }>
 > {
-  const r = await fetch(`https://central.nps.gov/units/api/v1/parks?apikey=${CENTRAL_KEY}`, {
-    headers: { "User-Agent": UA, Accept: "application/json" },
-  });
+  const url = `https://central.nps.gov/units/api/v1/parks?select=code,geometry&apikey=${CENTRAL_KEY}`;
+  const r = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
   if (!r.ok) throw new Error(`central.nps.gov HTTP ${r.status}`);
-  const data = (await r.json()) as Array<{ parkCode?: string; code?: string; fullName?: string }>;
+  const data = (await r.json()) as Array<{
+    parkCode?: string;
+    code?: string;
+    fullName?: string;
+    geometry?: { type?: string; coordinates?: number[] };
+  }>;
   const seen = new Set<string>();
-  const out: Array<{ code: string; name: string; states: string[] }> = [];
+  const out: Array<{ code: string; name: string; states: string[]; lat?: number; lng?: number }> =
+    [];
   for (const p of data) {
     const code = (p.parkCode ?? p.code ?? "").toLowerCase().trim();
     if (!code || seen.has(code)) continue;
     seen.add(code);
-    out.push({ code, name: p.fullName ?? code.toUpperCase(), states: [] });
+    // GeoJSON Point centroid → [lng, lat]. Skip non-Point/empty geometry.
+    const g = p.geometry;
+    const coords =
+      g?.type === "Point" && Array.isArray(g.coordinates) && g.coordinates.length >= 2
+        ? g.coordinates
+        : null;
+    const lng = coords ? coords[0] : undefined;
+    const lat = coords ? coords[1] : undefined;
+    out.push({
+      code,
+      name: p.fullName ?? code.toUpperCase(),
+      states: [],
+      lat: typeof lat === "number" ? lat : undefined,
+      lng: typeof lng === "number" ? lng : undefined,
+    });
   }
   return out;
 }
