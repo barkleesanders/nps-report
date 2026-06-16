@@ -1,6 +1,8 @@
 # nps-report
 
-Report broken things in US National Parks — a Hono + Cloudflare Worker **API and CLI** that wraps the National Park Service per-park "Email Us" contact form, the way [improvebayarea.com](https://improvebayarea.com) wraps SF311. Adds AI photo triage and GPS routing.
+Report broken things in US National Parks — a Hono + Cloudflare Worker **website, API, and CLI** that wraps the National Park Service per-park "Email Us" contact form, the way [improvebayarea.com](https://improvebayarea.com) wraps SF311. Adds AI photo triage and GPS routing across **all 435 NPS units that accept contact**.
+
+**Live:** https://nps-report.barkleesanders.workers.dev
 
 ## The honest ceiling (read this first)
 
@@ -26,6 +28,13 @@ POST /common/utilities/sendmail/sendemail.cfm
 ```
 
 `o` is an obfuscated per-mailbox recipient token (stable). `category` must be one of the 9 official values; **Facilities** and **Safety** are the "broken things" buckets. Location goes in the free-text `message` (there is no geo field) — this tool auto-embeds `Coordinates: …` + a Google Maps link.
+
+## Website
+
+`GET /` serves a mobile-first single-page report flow (modeled on improvebayarea):
+GPS auto-picks the nearest park → snap a photo → AI drafts category + subject +
+description → review/edit → **Preview** (dry run, shows the exact email) → **Send
+to park**. The reporter's own email is the reply-to; the NPS mails the park.
 
 ## API
 
@@ -69,16 +78,24 @@ npm run report -- --park goga … --json                    # machine output
 
 ## Park registry
 
-`src/parks.data.json` seeds Golden Gate with its verified token. Extend it:
+`src/parks.data.json` ships **435 NPS units** — every unit that exposes a public
+"Email Us" form — each with its `sendemail.cfm` recipient token and (432/435)
+lat/lng for GPS routing. Regenerate / extend it:
 
 ```bash
-# All parks (needs a free key from https://www.nps.gov/subjects/developer/get-started.htm):
-NPS_API_KEY=… npm run harvest
-# Specific parks, no key:
+# Full re-harvest of ALL NPS units — NO API key needed:
+npm run harvest
+# Specific parks only:
 npm run harvest -- --codes goga,yose,grca
 ```
 
-The harvester enumerates park codes via the read-only NPS Data API `/parks`, then scrapes each `/<code>/contacts.htm` for its `sendemail.cfm` recipient token + coordinates.
+The harvester enumerates every unit via `central.nps.gov/units/api/v1/parks`
+(`select=code,geometry` — the public, no-key endpoint nps.gov's own Find-a-Park
+UI uses; its `apikey` is a site-key shipped in the browser bundle, not a secret),
+which returns the unit list **plus** GeoJSON Point centroids for coordinates.
+It then scrapes each `/<code>/contacts.htm` for the recipient token. If you have a
+free [NPS Data API key](https://www.nps.gov/subjects/developer/get-started.htm),
+`NPS_API_KEY=… npm run harvest` uses the official `/parks` endpoint instead.
 
 ## Develop / deploy
 
