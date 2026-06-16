@@ -1,0 +1,19 @@
+{
+  "_meta": {
+    "note": "Park mailbox registry. Seeded with verified tokens; extend with `npm run harvest` (requires NPS_API_KEY for full enumeration + exact latLong). Each `recipientToken` is the obfuscated `o=` value from a park's /contacts.htm 'Email Us' link — stable per mailbox.",
+    "verified": "2026-06-15",
+    "source": "https://www.nps.gov/<code>/contacts.htm sendemail.cfm links"
+  },
+  "parks": [
+    {
+      "code": "goga",
+      "name": "Golden Gate National Recreation Area",
+      "referrerPath": "/goga/contacts.htm",
+      "recipientToken": "4C8ADCBAA2C0AAAE82B210AAC605AEBC5398559B4F96828F4C51A98808",
+      "mailbox": "general",
+      "states": ["CA"],
+      "lat": 37.8358,
+      "lng": -122.4662
+    }
+  ]
+}

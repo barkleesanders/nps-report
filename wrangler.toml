@@ -1,0 +1,20 @@
+name = "nps-report"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Public, non-secret config. The NPS Data API key (used only by the offline
+# harvester, scripts/harvest-parks.ts) is a secret — set it with:
+#   wrangler secret put NPS_API_KEY
+[vars]
+SERVICE_NAME = "nps-report"
+# Default sender identity stamped on reports when the caller omits one.
+DEFAULT_FROM_NAME = ""
+DEFAULT_FROM_EMAIL = ""
+
+# Workers AI — powers /api/analyze (photo -> category + draft) and text rewrite.
+[ai]
+binding = "AI"
+
+[observability]
+enabled = true
