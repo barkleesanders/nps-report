@@ -87,7 +87,13 @@ export function renderApp(): string {
 
   <main>
     <h1 style="font-size:1.45rem;font-weight:900;letter-spacing:-.02em;color:var(--green-dark);line-height:1.2">Report an issue in a national park</h1>
-    <div class="note"><strong>How it works:</strong> we fill out the park's own "Email Us" form for you — the National Park Service sends it to the park, and replies go to your email. There's no public ticket number (the NPS doesn't issue one).</div>
+    <p style="margin:-.1rem 0 .2rem;color:var(--muted);font-size:.95rem">Spot a broken trail, railing, restroom, or hazard in any U.S. national park? Report it in 30 seconds — across <strong>435 parks</strong>, from Yosemite to the National Mall.</p>
+    <div class="tldr" style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <span class="pill">📸 Photo → AI drafts it</span>
+      <span class="pill">📍 GPS finds the park</span>
+      <span class="pill">✉️ Emailed to the park</span>
+    </div>
+    <div class="note"><strong>How it works:</strong> we fill out the park's own "Email Us" form for you — the National Park Service sends it to the park, and replies go to your email. There's no public ticket number (the NPS doesn't issue one). <a href="/about" style="white-space:nowrap">Learn more →</a></div>
 
     <!-- 1. Location -->
     <section class="card accent">
@@ -146,6 +152,7 @@ export function renderApp(): string {
   </main>
 
   <footer>
+    <a href="/about" style="font-weight:700">About &amp; how it works</a><br>
     Not affiliated with the National Park Service. Files the park's public "Email Us" form on your behalf.
   </footer>
 </div>
@@ -290,4 +297,89 @@ init();
 /** Brand favicon (inline SVG) — pine + arrowhead motif. */
 export function faviconSvg(): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="${GREEN_DARK}"/><path d="M16 6 L24 17 H19 L25 26 H7 L13 17 H8 Z" fill="#fff"/><rect x="14.3" y="25" width="3.4" height="4" fill="${GOLD}"/></svg>`;
+}
+
+/** Human-readable "about / how it works" page (the README, on the site). */
+export function renderAbout(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>About — ParkReport</title>
+<meta name="description" content="What ParkReport is, how it submits to the National Park Service, and its honest limits.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--green:${GREEN};--green-dark:${GREEN_DARK};--gold:${GOLD};--cream:${CREAM};--ink:${INK};--muted:#5b6b61;--line:#e2e6df}
+  body{font-family:'Inter',system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--cream);color:var(--ink);line-height:1.6}
+  .wrap{max-width:680px;margin:0 auto;padding:0 1.25rem 4rem}
+  header{display:flex;align-items:center;gap:.6rem;padding:1rem 0;border-bottom:1px solid var(--line);margin-bottom:1.5rem}
+  header .mark{width:32px;height:32px}
+  header .name{font-weight:900;font-size:1.1rem;color:var(--green-dark)}
+  h1{font-size:1.8rem;font-weight:900;letter-spacing:-.02em;color:var(--green-dark);margin:.5rem 0 1rem}
+  h2{font-size:1.15rem;font-weight:800;color:var(--green-dark);margin:1.8rem 0 .5rem}
+  p{margin:.6rem 0}
+  ul{margin:.5rem 0 .5rem 1.2rem}
+  li{margin:.35rem 0}
+  a{color:var(--green-dark);font-weight:600}
+  code{font-family:ui-monospace,Menlo,monospace;background:#eef2ee;padding:.1rem .35rem;border-radius:.25rem;font-size:.85em}
+  .note{background:#fff7e6;border-left:4px solid var(--gold);padding:.85rem 1rem;border-radius:.4rem;color:#6b4e09;margin:1rem 0}
+  .steps{list-style:none;margin:.5rem 0;padding:0}
+  .steps li{background:#fff;border:1px solid var(--line);border-left:4px solid var(--green);border-radius:.6rem;padding:.75rem .9rem;margin:.5rem 0}
+  table{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:.9rem}
+  th,td{border:1px solid var(--line);padding:.5rem .6rem;text-align:left}
+  th{background:#eef4ef}
+  .cta{display:inline-block;background:var(--green);color:#fff;font-weight:800;padding:.7rem 1.3rem;border-radius:.7rem;text-decoration:none;margin-top:1rem}
+  footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 L25 16 H19 L26 27 H6 L13 16 H7 Z" fill="${GREEN}"/><rect x="14.3" y="26" width="3.4" height="4" fill="${GOLD}"/></svg>
+    <span class="name">ParkReport</span>
+  </header>
+
+  <h1>What is ParkReport?</h1>
+  <p>A free, people-powered way to report broken or unsafe conditions in U.S. national parks — a cracked railing, a washed-out trail, a closed restroom, a downed sign, a safety hazard. Snap a photo, and it goes to the right park. Think of it as a "311" for the National Park System.</p>
+
+  <div class="note"><strong>The honest truth:</strong> unlike a city 311, the National Park Service has <strong>no public ticket system</strong>. ParkReport fills out each park's own official "Email Us" form for you and the NPS emails it to that park. You'll get replies at your own email — but there's <strong>no case number or status tracker</strong>, because the NPS doesn't issue one.</p>
+
+  <h2>How it works — 3 steps</h2>
+  <ol class="steps">
+    <li><strong>📸 Add a photo.</strong> AI looks at it and drafts the report — picks the category (Facilities, Safety, …), writes a subject and a factual description. Edit anything.</li>
+    <li><strong>📍 We find the park.</strong> Your phone's GPS auto-routes the report to the nearest of <strong>435 national-park units</strong> — or pick one from the list. Your coordinates + a Google Maps pin are included so a ranger knows the exact spot.</li>
+    <li><strong>✉️ Send.</strong> We submit the park's real contact form. The NPS emails it to that park; replies come to your inbox.</li>
+  </ol>
+
+  <h2>How it compares to a city 311</h2>
+  <table>
+    <tr><th></th><th>City 311 (e.g. SF311)</th><th>ParkReport (NPS)</th></tr>
+    <tr><td>Submit programmatically</td><td>Yes (Open311)</td><td>Yes — the park's email form</td></tr>
+    <tr><td>Tracked case number</td><td>Yes</td><td><strong>No</strong> (email only)</td></tr>
+    <tr><td>Status updates</td><td>Yes</td><td><strong>No</strong></td></tr>
+    <tr><td>Exact location sent</td><td>lat/lng fields</td><td>coords + map link in the message</td></tr>
+    <tr><td>AI photo drafting</td><td>—</td><td>Yes</td></tr>
+  </table>
+
+  <h2>What you can report</h2>
+  <p>Anything a visitor would tell a ranger: <strong>Facilities</strong> (broken trails, restrooms, railings, signs, roads), <strong>Safety</strong> hazards, accessibility barriers, and more. Across all 435 NPS units that accept public contact — national parks, monuments, historic sites, battlefields, the National Mall, and beyond.</p>
+
+  <h2>Privacy &amp; trust</h2>
+  <ul>
+    <li>Your email is used only as the reply-to so the park can respond to you.</li>
+    <li>We don't store your report — it goes straight to the park's official form.</li>
+    <li>Not affiliated with or endorsed by the National Park Service.</li>
+  </ul>
+
+  <p><a class="cta" href="/">← Report an issue</a></p>
+
+  <footer>ParkReport · wraps the NPS public "Email Us" form (<code>nps.gov</code> sendemail.cfm) · not affiliated with the National Park Service.</footer>
+</div>
+</body>
+</html>`;
 }

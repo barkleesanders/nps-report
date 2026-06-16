@@ -23,7 +23,7 @@ import { NPS_CATEGORIES, normalizeCategory } from "./categories";
 import { isValidLatLng, locationLine, nearestPark } from "./geo";
 import { NpsReportError, type ReportInput, submitReport } from "./nps";
 import { getPark, listParks, publicPark } from "./parks";
-import { faviconSvg, renderApp } from "./ui";
+import { faviconSvg, renderAbout, renderApp } from "./ui";
 
 // Strict CSP for the API + a slightly looser one for the HTML page (Google
 // Fonts + the page's own inline script/styles; no third-party JS).
@@ -52,7 +52,10 @@ app.use("*", async (c, next) => {
   c.header("X-Content-Type-Options", "nosniff");
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
   c.header("X-Frame-Options", "DENY");
-  c.header("Content-Security-Policy", c.req.path === "/" ? PAGE_CSP : API_CSP);
+  c.header(
+    "Content-Security-Policy",
+    c.req.path === "/" || c.req.path === "/about" ? PAGE_CSP : API_CSP,
+  );
   c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
 });
 
@@ -270,5 +273,6 @@ app.get("/favicon.svg", (c) => {
 });
 
 app.get("/", (c) => c.html(renderApp()));
+app.get("/about", (c) => c.html(renderAbout()));
 
 export default app;
