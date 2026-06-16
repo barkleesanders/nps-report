@@ -67,14 +67,22 @@ async function listAllParkCodes(
   return out;
 }
 
-// Pull the first sendemail.cfm recipient token from a park's contacts page.
-async function scrapeToken(code: string): Promise<string | null> {
+// Pull the first sendemail.cfm recipient token + the real park name from a
+// park's contacts page (so --codes mode yields quality data without an API key).
+async function scrapePark(code: string): Promise<{ token: string | null; name: string | null }> {
   const url = `https://www.nps.gov/${code}/contacts.htm`;
   const r = await fetch(url, { headers: { "User-Agent": UA } });
-  if (!r.ok) return null;
+  if (!r.ok) return { token: null, name: null };
   const html = await r.text();
-  const m = html.match(/sendemail\.cfm\?o=([0-9A-F]+)/i);
-  return m?.[1] ?? null;
+  const token = html.match(/sendemail\.cfm\?o=([0-9A-F]+)/i)?.[1] ?? null;
+  // Title format: "Contact Us - <Park Name> (U.S. National Park Service)"
+  const rawTitle = html.match(/<title>([^<]*)<\/title>/i)?.[1] ?? "";
+  const name =
+    rawTitle
+      .replace(/\(U\.S\.\s*National Park Service\)\s*$/i, "")
+      .replace(/^\s*contact us\s*[-–—]\s*/i, "")
+      .trim() || null;
+  return { token, name };
 }
 
 async function main() {
@@ -106,14 +114,15 @@ async function main() {
   let added = 0;
   let updated = 0;
   for (const park of catalog) {
-    const token = await scrapeToken(park.code);
+    const { token, name: scrapedName } = await scrapePark(park.code);
     if (!token) {
       console.error(`  ${park.code}: no contact token (skipped)`);
       continue;
     }
+    const placeholder = park.name === park.code.toUpperCase();
     const record: ParkRecord = {
       code: park.code,
-      name: park.name,
+      name: placeholder && scrapedName ? scrapedName : park.name,
       referrerPath: `/${park.code}/contacts.htm`,
       recipientToken: token,
       mailbox: "general",

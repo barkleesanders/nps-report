@@ -1,19 +1,410 @@
 {
   "_meta": {
-    "note": "Park mailbox registry. Seeded with verified tokens; extend with `npm run harvest` (requires NPS_API_KEY for full enumeration + exact latLong). Each `recipientToken` is the obfuscated `o=` value from a park's /contacts.htm 'Email Us' link — stable per mailbox.",
-    "verified": "2026-06-15",
+    "note": "Park mailbox registry. recipientToken is the obfuscated o= value from each park's /contacts.htm 'Email Us' link.",
+    "verified": "2026-06-16",
     "source": "https://www.nps.gov/<code>/contacts.htm sendemail.cfm links"
   },
   "parks": [
+    {
+      "code": "acad",
+      "name": "Acadia National Park",
+      "referrerPath": "/acad/contacts.htm",
+      "recipientToken": "4A86DABF94D290B59ABD1CBDF416BFA4499366814CA5C2985009",
+      "mailbox": "general"
+    },
+    {
+      "code": "arch",
+      "name": "Arches National Park",
+      "referrerPath": "/arch/contacts.htm",
+      "recipientToken": "78A0EE9CA2E3BABE98B21090D811ADAC4F8F55AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "badl",
+      "name": "Badlands National Park",
+      "referrerPath": "/badl/contacts.htm",
+      "recipientToken": "4984DFB7A2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "bibe",
+      "name": "Big Bend National Park",
+      "referrerPath": "/bibe/contacts.htm",
+      "recipientToken": "498CD9BEA2DAA1BA9B9B1DBFEA59ACA250",
+      "mailbox": "general"
+    },
+    {
+      "code": "bisc",
+      "name": "Biscayne National Park",
+      "referrerPath": "/bisc/contacts.htm",
+      "recipientToken": "498CC8B8A2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "blca",
+      "name": "Black Canyon Of The Gunnison National Park",
+      "referrerPath": "/blca/contacts.htm",
+      "recipientToken": "4989D8BAA2DAA1BA9B9B1DBFEA59ACA250",
+      "mailbox": "general"
+    },
+    {
+      "code": "brca",
+      "name": "Bryce Canyon National Park",
+      "referrerPath": "/brca/contacts.htm",
+      "recipientToken": "4997D8BAA2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "cany",
+      "name": "Canyonlands National Park",
+      "referrerPath": "/cany/contacts.htm",
+      "recipientToken": "78A0EE9CA2E3BABE98B21090D811ADAC4F8F55AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "care",
+      "name": "Capitol Reef National Park",
+      "referrerPath": "/care/contacts.htm",
+      "recipientToken": "4884C9BEA2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "chis",
+      "name": "Channel Islands National Park",
+      "referrerPath": "/chis/contacts.htm",
+      "recipientToken": "488DD2A8A2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "cong",
+      "name": "Congaree National Park",
+      "referrerPath": "/cong/contacts.htm",
+      "recipientToken": "488AD5BCA2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "crla",
+      "name": "Crater Lake National Park",
+      "referrerPath": "/crla/contacts.htm",
+      "recipientToken": "4897DAAF98C1A3BD9FBE33A1E904E5AA498B",
+      "mailbox": "general"
+    },
+    {
+      "code": "cuva",
+      "name": "Cuyahoga Valley National Park",
+      "referrerPath": "/cuva/contacts.htm",
+      "recipientToken": "4890CDBAA2DAA1BA9B9B1DBFEA59ACA250",
+      "mailbox": "general"
+    },
+    {
+      "code": "dena",
+      "name": "Denali National Park & Preserve",
+      "referrerPath": "/dena/contacts.htm",
+      "recipientToken": "4F80D5BA91DA90B59ABD1C8FF707B8E3419250",
+      "mailbox": "general"
+    },
+    {
+      "code": "deva",
+      "name": "Death Valley National Park",
+      "referrerPath": "/deva/contacts.htm",
+      "recipientToken": "4F80CDBAA2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "drto",
+      "name": "Dry Tortugas National Park",
+      "referrerPath": "/drto/contacts.htm",
+      "recipientToken": "4F97CFB4A2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "ever",
+      "name": "Everglades National Park",
+      "referrerPath": "/ever/contacts.htm",
+      "recipientToken": "4E93DEA9A2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "gaar",
+      "name": "Gates Of The Arctic National Park & Preserve",
+      "referrerPath": "/gaar/contacts.htm",
+      "recipientToken": "4D84D2A9A2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "gett",
+      "name": "Gettysburg National Military Park",
+      "referrerPath": "/gett/contacts.htm",
+      "recipientToken": "4C80CFAFA2C0BAAC91A91AA1ED12A5A9439352AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "glba",
+      "name": "Glacier Bay National Park & Preserve",
+      "referrerPath": "/glba/contacts.htm",
+      "recipientToken": "4C89D9BAA2D2ABB19DB51ABCED05AAB94F9248AF52A69FD15810B8",
+      "mailbox": "general"
+    },
     {
       "code": "goga",
       "name": "Golden Gate National Recreation Area",
       "referrerPath": "/goga/contacts.htm",
       "recipientToken": "4C8ADCBAA2C0AAAE82B210AAC605AEBC5398559B4F96828F4C51A98808",
       "mailbox": "general",
-      "states": ["CA"],
       "lat": 37.8358,
       "lng": -122.4662
+    },
+    {
+      "code": "grba",
+      "name": "Great Basin National Park",
+      "referrerPath": "/grba/contacts.htm",
+      "recipientToken": "4C97D9BAA2DAA1A891A903BDFC03AAB94F9248AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "grca",
+      "name": "Grand Canyon National Park",
+      "referrerPath": "/grca/contacts.htm",
+      "recipientToken": "4C97D8BAA2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "grsa",
+      "name": "Great Sand Dunes National Park & Preserve",
+      "referrerPath": "/grsa/contacts.htm",
+      "recipientToken": "4C97C8BAA2DAA1A891A903BDFC03AAB94F9248AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "grsm",
+      "name": "Great Smoky Mountains National Park",
+      "referrerPath": "/grsm/contacts.htm",
+      "recipientToken": "6CB7E896A2E0A2B39FB216BCC63EA5AB498F4B8E48BF83917F11BE9450D189A9",
+      "mailbox": "general"
+    },
+    {
+      "code": "grte",
+      "name": "Grand Teton National Park",
+      "referrerPath": "/grte/contacts.htm",
+      "recipientToken": "4C97CFBEA2DAA1BA9B9B1DBFEA59ACA250",
+      "mailbox": "general"
+    },
+    {
+      "code": "gumo",
+      "name": "Guadalupe Mountains National Park",
+      "referrerPath": "/gumo/contacts.htm",
+      "recipientToken": "5F8DDEA998C0AE8399B41CBDFC37A5BD55D341804A",
+      "mailbox": "general"
+    },
+    {
+      "code": "hale",
+      "name": "Haleakalā National Park",
+      "referrerPath": "/hale/contacts.htm",
+      "recipientToken": "63A4F79EA2FAA1A891A903BDFC03AAB94F9248AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "havo",
+      "name": "Hawaiʻi Volcanoes National Park",
+      "referrerPath": "/havo/contacts.htm",
+      "recipientToken": "4384CDB4A2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "hosp",
+      "name": "Hot Springs National Park",
+      "referrerPath": "/hosp/contacts.htm",
+      "recipientToken": "438AC8ABA2C3AEAE9F841AA1FF18B9A047894F805296828F4C51A98808",
+      "mailbox": "general"
+    },
+    {
+      "code": "inde",
+      "name": "Independence National Historical Park",
+      "referrerPath": "/inde/contacts.htm",
+      "recipientToken": "428BDFBE8BDABCB580B401A6F711A48D488D55C15BB99A",
+      "mailbox": "general"
+    },
+    {
+      "code": "isro",
+      "name": "Isle Royale National Park",
+      "referrerPath": "/isro/contacts.htm",
+      "recipientToken": "4296C9B4A2C3AEAE9FB21DA9F637A5BD55D341804A",
+      "mailbox": "general"
+    },
+    {
+      "code": "jeff",
+      "name": "Gateway Arch National Park",
+      "referrerPath": "/jeff/contacts.htm",
+      "recipientToken": "61A0FD9DA2E0BAAC91A91AA1ED12A5A9439352AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "jotr",
+      "name": "Joshua Tree National Park",
+      "referrerPath": "/jotr/contacts.htm",
+      "recipientToken": "418ACFA9A2DAA1BA9B9B1DBFEA59ACA250",
+      "mailbox": "general"
+    },
+    {
+      "code": "katm",
+      "name": "Katmai National Park & Preserve",
+      "referrerPath": "/katm/contacts.htm",
+      "recipientToken": "60A4EF96A2E5A6AF9DAF1CBDC63EA5AB498F4B8E48BF83917F11BE9450D189A9",
+      "mailbox": "general"
+    },
+    {
+      "code": "kefj",
+      "name": "Kenai Fjords National Park",
+      "referrerPath": "/kefj/contacts.htm",
+      "recipientToken": "4080DDB194DDA9B386B612BBF018A58D488D55C15BB99A",
+      "mailbox": "general"
+    },
+    {
+      "code": "kova",
+      "name": "Kobuk Valley National Park",
+      "referrerPath": "/kova/contacts.htm",
+      "recipientToken": "5C80DAA9A2C4AABE99BA1AA3D919BBBE089A4999",
+      "mailbox": "general"
+    },
+    {
+      "code": "lacl",
+      "name": "Lake Clark National Park & Preserve",
+      "referrerPath": "/lacl/contacts.htm",
+      "recipientToken": "67A4F897A2E5A6AF9DAF1CBDC63EA5AB498F4B8E48BF83917F11BE9450D189A9",
+      "mailbox": "general"
+    },
+    {
+      "code": "maca",
+      "name": "Mammoth Cave National Park",
+      "referrerPath": "/maca/contacts.htm",
+      "recipientToken": "4684D8BAA2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "mora",
+      "name": "Mount Rainier National Park",
+      "referrerPath": "/mora/contacts.htm",
+      "recipientToken": "468AC9BA94DDA9B3B4B503BCB710A4BB",
+      "mailbox": "general"
+    },
+    {
+      "code": "noca",
+      "name": "North Cascades National Park",
+      "referrerPath": "/noca/contacts.htm",
+      "recipientToken": "458AD8BAA2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "olym",
+      "name": "Olympic National Park",
+      "referrerPath": "/olym/contacts.htm",
+      "recipientToken": "4489C2B6A2C5A6AF9DAF1CBDC614AEA3529854AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "pinn",
+      "name": "Pinnacles National Park",
+      "referrerPath": "/pinn/contacts.htm",
+      "recipientToken": "5B8CD5B5A2C5A6AF9DAF1CBDC61EA5AB498F4B8E48BF83917F11BE9450D189A9",
+      "mailbox": "general"
+    },
+    {
+      "code": "redw",
+      "name": "Redwood National and State Parks",
+      "referrerPath": "/redw/contacts.htm",
+      "recipientToken": "79A0FF8CA2FAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "romo",
+      "name": "Rocky Mountain National Park",
+      "referrerPath": "/romo/contacts.htm",
+      "recipientToken": "598AD6B4A2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "sagu",
+      "name": "Saguaro National Park",
+      "referrerPath": "/sagu/contacts.htm",
+      "recipientToken": "5884DCAEA2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "seki",
+      "name": "Sequoia & Kings Canyon National Parks",
+      "referrerPath": "/seki/contacts.htm",
+      "recipientToken": "5880D0B2A2DAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "shen",
+      "name": "Shenandoah National Park",
+      "referrerPath": "/shen/contacts.htm",
+      "recipientToken": "78ADFE95A2C0BAAC91A91AA1ED12A5A9439352AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "stli",
+      "name": "Statue Of Liberty National Monument",
+      "referrerPath": "/stli/contacts.htm",
+      "recipientToken": "5891D7B2A2DAA1BA9B9B1DBFEA59ACA250",
+      "mailbox": "general"
+    },
+    {
+      "code": "thro",
+      "name": "Theodore Roosevelt National Park",
+      "referrerPath": "/thro/contacts.htm",
+      "recipientToken": "5F8DC9B4A2DAA1A891A903BDFC03AAB94F9248AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "viis",
+      "name": "Virgin Islands National Park",
+      "referrerPath": "/viis/contacts.htm",
+      "recipientToken": "5D8CD2A8A2DAA1A891A903BDFC03AAB94F9248AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "voya",
+      "name": "Voyageurs National Park",
+      "referrerPath": "/voya/contacts.htm",
+      "recipientToken": "7DAAE29AA2DAA1BA9B9B1DBFEA59ACA250",
+      "mailbox": "general"
+    },
+    {
+      "code": "wica",
+      "name": "Wind Cave National Park",
+      "referrerPath": "/wica/contacts.htm",
+      "recipientToken": "5C8CD8BAA2DAA1A891A903BDFC03AAB94F9248AF52A69FD15810B8",
+      "mailbox": "general"
+    },
+    {
+      "code": "wrst",
+      "name": "Wrangell - St Elias National Park & Preserve",
+      "referrerPath": "/wrst/contacts.htm",
+      "recipientToken": "5C97C8AFA2DAA1BA9B9B1DBFEA59ACA250",
+      "mailbox": "general"
+    },
+    {
+      "code": "yell",
+      "name": "Yellowstone National Park",
+      "referrerPath": "/yell/contacts.htm",
+      "recipientToken": "72A0F797A2FAA1BA9BA91EAEED1EA4A36693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "yose",
+      "name": "Yosemite National Park",
+      "referrerPath": "/yose/contacts.htm",
+      "recipientToken": "528AC8BEA2C4AABEABB612A1F810AEBF6693569C12B18389",
+      "mailbox": "general"
+    },
+    {
+      "code": "zion",
+      "name": "Zion National Park",
+      "referrerPath": "/zion/contacts.htm",
+      "recipientToken": "518CD4B5A2C3AEAE9F841AA1FF18B9A047894F805296828F4C51A98808",
+      "mailbox": "general"
     }
   ]
 }
