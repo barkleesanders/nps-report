@@ -251,10 +251,10 @@ const REJECT_RE = /(error|required|please (correct|complete|enter)|invalid|try a
 /**
  * Heuristic success determination from the POST response.
  *
- * PROVISIONAL: a real success page has not been captured (doing so would email a
- * live park). `confirmed` requires a positive phrase and no error phrase;
- * `rejected` requires an error phrase; otherwise `unknown` — callers should
- * surface "submitted, confirmation unverified" rather than claim success.
+ * VERIFIED 2026-06-16 against a real live submission: the form returns
+ * "Your email has been sent" → `confirmed`. `confirmed` requires a positive
+ * phrase and no error phrase; `rejected` requires an error phrase; otherwise
+ * `unknown` — callers should surface "submitted, confirmation unverified".
  */
 export function parseSubmitResult(
   html: string,

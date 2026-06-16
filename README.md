@@ -16,7 +16,7 @@ The NPS has **no public service-request API** like SF311 / Open311. There is no 
 | Structured geo | Yes (lat/lng) | **No** — coords embedded in message text |
 | CAPTCHA | varies | None (honeypot + server token) |
 
-Contract verified **2026-06-15** by fetching the live Golden Gate form. No live test submissions were made.
+Contract verified **2026-06-15** by fetching the live Golden Gate form, and an **end-to-end live submission was delivered and confirmed working 2026-06-16** — the form returns *"Your email has been sent."* The path works; it just doesn't hand back a case ID, because the NPS doesn't issue one.
 
 ## How submission works
 
@@ -109,6 +109,6 @@ npm run dev         # wrangler dev
 
 ## Caveats
 
-- **Success detection is provisional.** A real success page hasn't been captured (that would email a live park). `signal` is `confirmed` only on a positive phrase or a 3xx redirect; otherwise `unknown` — surface "submitted, confirmation unverified" to users.
+- **Success detection is verified.** A real live submission succeeded **2026-06-16** — the form returns *"Your email has been sent"*, which the parser maps to `signal: confirmed` (a 3xx redirect also counts). Anything else stays `unknown` so apps can surface "submitted, confirmation unverified" rather than overclaim.
 - **Treat every send as a real visitor email.** No test/RE markers in messages — they reach actual park staff.
 - Not affiliated with the National Park Service.
