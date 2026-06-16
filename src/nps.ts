@@ -200,11 +200,7 @@ export async function prepareReport(
   const hpt = hidden.hpt ?? "";
   const r = hidden.r ?? encodeURIComponent(input.referrerPath);
   const type = hidden.type ?? "contact";
-  // Honeypot gate: the form renders submitted="y"; the page's own JS flips it to
-  // "n" on a real browser, and the server REJECTS "y" ("you have come to this
-  // page in error"). We must submit "n" to mimic the browser. Verified by a live
-  // POST 2026-06-16 — submitting the rendered "y" is rejected.
-  const submitted = "n";
+  const submitted = hidden.submitted ?? "y";
 
   const fields: Record<string, string> = {
     hpt,
@@ -228,7 +224,11 @@ export async function prepareReport(
   const body = new URLSearchParams(fields).toString();
 
   return {
-    endpoint: new URL(SENDMAIL_PATH, NPS_ORIGIN).toString(),
+    // POST back to the SAME URL as the GET — with the ?o=&r= query string. The
+    // server reads o/r from the query; POSTing to the bare endpoint is rejected
+    // ("you have come to this page in error"). Verified against a real browser
+    // submission 2026-06-16 (captured POST kept the query string).
+    endpoint: getUrl,
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",

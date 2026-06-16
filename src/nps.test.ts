@@ -100,7 +100,7 @@ describe("prepareReport", () => {
     const live = parseHiddenInputs(FORM_HTML);
     expect(prepared.fields.hpt).toBe(live.hpt);
     expect(prepared.fields.type).toBe("contact");
-    expect(prepared.fields.submitted).toBe("n"); // honeypot: flip rendered "y" -> "n"
+    expect(prepared.fields.submitted).toBe("y"); // echoed from the form as-is
     // category normalized
     expect(prepared.fields.category).toBe("Facilities");
     // location folded into the message
@@ -110,6 +110,11 @@ describe("prepareReport", () => {
     expect(decoded.get("email")).toBe("reporter@example.com");
     expect(decoded.get("subject")).toBe("Broken railing at Lands End");
     expect(prepared.headers.Referer).toContain("sendemail.cfm");
+    // POST endpoint MUST keep the ?o=&r= query string (server reads them from
+    // the URL; bare endpoint is rejected). Verified against a real browser POST.
+    expect(prepared.endpoint).toContain("sendemail.cfm?");
+    expect(prepared.endpoint).toContain(`o=${baseInput.recipientToken}`);
+    expect(prepared.endpoint).toContain("r=");
   });
 
   it("rejects invalid input before any network call", async () => {
