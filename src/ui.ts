@@ -50,6 +50,12 @@ export function renderApp(): string {
   textarea{min-height:5.5rem;resize:vertical}
   .park-name{font-weight:900;font-size:1.35rem;color:var(--green-dark);line-height:1.15}
   .hint{font-size:.72rem;color:var(--muted);margin-top:.35rem}
+  .combo{position:relative}
+  .suggest{position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:30;background:#fff;border:1.5px solid var(--green);border-radius:.6rem;box-shadow:0 8px 24px rgba(20,40,30,.15);max-height:15rem;overflow-y:auto;list-style:none}
+  .suggest li{padding:.6rem .8rem;cursor:pointer;font-size:.92rem;border-bottom:1px solid var(--line)}
+  .suggest li:last-child{border-bottom:none}
+  .suggest li:hover,.suggest li.active{background:#eef4ef;color:var(--green-dark);font-weight:700}
+  .suggest .muted{color:var(--muted);font-weight:400;font-size:.78rem}
   .drop{display:block;border:2px dashed #c4d2c9;border-radius:.7rem;padding:1.5rem 1rem;text-align:center;cursor:pointer;transition:.15s;color:var(--muted)}
   .drop:hover,.drop.over{border-color:var(--green);background:#f1f7f3;color:var(--green-dark)}
   .drop .big{font-size:2rem;line-height:1}
@@ -103,8 +109,12 @@ export function renderApp(): string {
         <span id="gps" class="pill" style="margin-left:auto"><span class="dot"></span><span id="gps-txt">Locating…</span></span>
       </div>
       <div id="park-name" class="park-name">Choose a park</div>
-      <select id="park" aria-label="Select park" style="margin-top:.6rem"></select>
-      <div class="hint" id="park-hint">We auto-pick the nearest park from your location. You can change it.</div>
+      <div class="combo" style="margin-top:.6rem">
+        <input id="park-search" type="text" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="park-suggest" aria-autocomplete="list" placeholder="Search all 435 parks — type a name…">
+        <ul id="park-suggest" role="listbox" class="suggest hidden"></ul>
+      </div>
+      <input type="hidden" id="park">
+      <div class="hint" id="park-hint">We auto-pick the nearest park from your GPS. Type above to override.</div>
     </section>
 
     <!-- 2. Photo -->
@@ -174,16 +184,11 @@ async function init() {
     const cats = await (await fetch('/api/categories')).json();
     $('category').innerHTML = cats.categories.map(c => '<option value="'+c+'"'+(c==='Facilities'?' selected':'')+'>'+c+'</option>').join('');
   } catch {}
-  // parks
+  // parks -> searchable type-ahead combobox
   try {
     const data = await (await fetch('/api/parks')).json();
     state.parks = data.parks.sort((a,b)=>a.name.localeCompare(b.name));
-    $('park').innerHTML = '<option value="">— choose a park —</option>' +
-      state.parks.map(p => '<option value="'+p.code+'">'+p.name+'</option>').join('');
-    $('park').onchange = () => {
-      const p = state.parks.find(x => x.code === $('park').value);
-      $('park-name').textContent = p ? p.name : 'Choose a park';
-    };
+    setupParkSearch();
   } catch {}
   // geolocation -> nearest park
   if (navigator.geolocation) {
@@ -194,6 +199,7 @@ async function init() {
         if (loc.nearestPark) {
           $('park').value = loc.nearestPark.code;
           $('park-name').textContent = loc.nearestPark.name;
+          $('park-search').value = loc.nearestPark.name;
           $('gps-txt').textContent = 'Near ' + (loc.nearestPark.name.split(' National')[0]);
           $('gps').querySelector('.dot').classList.add('live');
           $('park-hint').textContent = '~' + loc.nearestPark.distanceKm + ' km from your location. Change it if needed.';
@@ -201,6 +207,48 @@ async function init() {
       } catch { $('gps-txt').textContent = 'Located'; }
     }, () => { $('gps-txt').textContent = 'No GPS'; }, {enableHighAccuracy:true, timeout:8000});
   } else { $('gps-txt').textContent = 'No GPS'; }
+}
+
+// ---- searchable park type-ahead (overrides GPS) ----
+function setupParkSearch() {
+  const input = $('park-search'), box = $('park-suggest');
+  let active = -1, items = [];
+  const close = () => { box.classList.add('hidden'); box.innerHTML=''; active=-1; items=[]; input.setAttribute('aria-expanded','false'); };
+  const pick = (p) => {
+    $('park').value = p.code;
+    $('park-name').textContent = p.name;
+    input.value = p.name;
+    $('park-hint').textContent = 'Reporting to ' + p.name + '. Type to change.';
+    close();
+  };
+  const render = (q) => {
+    const ql = q.trim().toLowerCase();
+    if (!ql) { close(); return; }
+    items = state.parks.filter(p =>
+      p.name.toLowerCase().includes(ql) || p.code.toLowerCase() === ql
+    ).slice(0, 8);
+    if (!items.length) { box.innerHTML = '<li class="muted" aria-disabled="true">No park matches “'+esc(q)+'”</li>'; box.classList.remove('hidden'); return; }
+    box.innerHTML = items.map((p,i) =>
+      '<li role="option" data-i="'+i+'"'+(i===active?' class="active"':'')+'>'+esc(p.name)+
+      ' <span class="muted">'+esc((p.states||[]).join(', '))+'</span></li>'
+    ).join('');
+    box.classList.remove('hidden');
+    input.setAttribute('aria-expanded','true');
+  };
+  input.addEventListener('input', () => { active=-1; render(input.value); });
+  input.addEventListener('focus', () => { if (input.value) render(input.value); });
+  input.addEventListener('keydown', (e) => {
+    if (box.classList.contains('hidden')) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active=Math.min(active+1, items.length-1); render(input.value); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active=Math.max(active-1, 0); render(input.value); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (items[active]) pick(items[active]); else if (items.length===1) pick(items[0]); }
+    else if (e.key === 'Escape') { close(); }
+  });
+  box.addEventListener('mousedown', (e) => {
+    const li = e.target.closest('li[data-i]'); if (!li) return;
+    e.preventDefault(); pick(items[Number(li.dataset.i)]);
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.combo')) close(); });
 }
 
 // ---- photo ----
