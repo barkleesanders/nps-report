@@ -100,7 +100,7 @@ describe("prepareReport", () => {
     const live = parseHiddenInputs(FORM_HTML);
     expect(prepared.fields.hpt).toBe(live.hpt);
     expect(prepared.fields.type).toBe("contact");
-    expect(prepared.fields.submitted).toBe("y");
+    expect(prepared.fields.submitted).toBe("n"); // honeypot: flip rendered "y" -> "n"
     // category normalized
     expect(prepared.fields.category).toBe("Facilities");
     // location folded into the message

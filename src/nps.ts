@@ -200,7 +200,11 @@ export async function prepareReport(
   const hpt = hidden.hpt ?? "";
   const r = hidden.r ?? encodeURIComponent(input.referrerPath);
   const type = hidden.type ?? "contact";
-  const submitted = hidden.submitted ?? "y";
+  // Honeypot gate: the form renders submitted="y"; the page's own JS flips it to
+  // "n" on a real browser, and the server REJECTS "y" ("you have come to this
+  // page in error"). We must submit "n" to mimic the browser. Verified by a live
+  // POST 2026-06-16 — submitting the rendered "y" is rejected.
+  const submitted = "n";
 
   const fields: Record<string, string> = {
     hpt,
