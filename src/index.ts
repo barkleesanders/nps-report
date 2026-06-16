@@ -23,6 +23,18 @@ import { NPS_CATEGORIES, normalizeCategory } from "./categories";
 import { isValidLatLng, locationLine, nearestPark } from "./geo";
 import { NpsReportError, type ReportInput, submitReport } from "./nps";
 import { getPark, listParks, publicPark } from "./parks";
+import { faviconSvg, renderApp } from "./ui";
+
+// Strict CSP for the API + a slightly looser one for the HTML page (Google
+// Fonts + the page's own inline script/styles; no third-party JS).
+const API_CSP =
+  "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; " +
+  "img-src 'self' data:; base-uri 'self'; frame-ancestors 'none'; object-src 'none'";
+const PAGE_CSP =
+  "default-src 'self'; script-src 'self' 'unsafe-inline'; " +
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+  "font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; " +
+  "base-uri 'self'; frame-ancestors 'none'; object-src 'none'";
 
 interface Env {
   AI: Ai;
@@ -40,11 +52,7 @@ app.use("*", async (c, next) => {
   c.header("X-Content-Type-Options", "nosniff");
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
   c.header("X-Frame-Options", "DENY");
-  c.header(
-    "Content-Security-Policy",
-    "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; " +
-      "img-src 'self' data:; base-uri 'self'; frame-ancestors 'none'; object-src 'none'",
-  );
+  c.header("Content-Security-Policy", c.req.path === "/" ? PAGE_CSP : API_CSP);
   c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
 });
 
@@ -127,7 +135,12 @@ app.post("/api/analyze", async (c) => {
     return c.json({ error: "bad_image", message: String(err) }, 400);
   }
 
-  const suggestion = await analyzePhoto(c.env.AI, bytes);
+  let suggestion: Awaited<ReturnType<typeof analyzePhoto>>;
+  try {
+    suggestion = await analyzePhoto(c.env.AI, bytes);
+  } catch (err) {
+    return c.json({ error: "ai_failed", message: String(err) }, 502);
+  }
   const near = isValidLatLng(body.lat, body.lng)
     ? nearestPark(body.lat as number, body.lng as number)
     : null;
@@ -250,56 +263,12 @@ app.post("/api/report", async (c) => {
   }
 });
 
-app.get("/", (c) =>
-  c.html(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>nps-report — report broken things in National Parks</title>
-<style>
-  :root { color-scheme: light dark; }
-  body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 46rem;
-         margin: 2rem auto; padding: 0 1rem; color: #1a2421; background: #f6f7f5; }
-  h1 { font-size: 1.7rem; margin-bottom: .25rem; color: #14532d; }
-  h2 { font-size: 1.15rem; margin-top: 1.6rem; }
-  .sub { color: #3f5249; margin-top: 0; }
-  code, pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
-  pre { background: #0f1f17; color: #e6f2ea; padding: 1rem; border-radius: .5rem; overflow-x: auto;
-        font-size: .85rem; }
-  .note { background: #fff7e6; border-left: 4px solid #b7791f; padding: .75rem 1rem; border-radius: .25rem;
-          color: #5c4708; }
-  a { color: #14532d; }
-  footer { color: #3f5249; font-size: .85rem; margin-top: 2rem; }
-</style>
-</head>
-<body>
-  <h1>nps-report</h1>
-  <p class="sub">Report broken things in US National Parks — an SF311-style wrapper around the NPS per-park contact form, with AI photo triage and GPS routing.</p>
-  <div class="note"><strong>Honest ceiling:</strong> the NPS has no public ticket system. This <em>emails</em> the park (categories <strong>Facilities</strong> / <strong>Safety</strong>). You get no tracked case ID and no status — unlike SF311.</div>
-  <h2>Submit a report</h2>
-  <pre>curl -X POST /api/report \\
-  -H 'content-type: application/json' \\
-  -d '{
-    "lat": 37.836, "lng": -122.466,
-    "category": "Facilities",
-    "subject": "Broken railing at Lands End overlook",
-    "description": "The wooden railing is cracked and loose near the main viewpoint.",
-    "email": "reporter@example.com",
-    "send": false
-  }'</pre>
-  <p>Give <code>parkCode</code> <em>or</em> <code>lat</code>+<code>lng</code> (auto-routes to the nearest park). <code>send</code> defaults to <code>false</code> (dry run). Set <code>"send": true</code> to deliver.</p>
-  <h2>Endpoints</h2>
-  <ul>
-    <li><code>GET /api/parks</code> · <code>GET /api/parks/:code</code> — registered parks</li>
-    <li><code>GET /api/categories</code> — the 9 NPS report categories</li>
-    <li><code>POST /api/locate</code> — <code>{lat,lng}</code> → nearest park</li>
-    <li><code>POST /api/analyze</code> — photo (+ GPS) → AI category/subject/description</li>
-    <li><code>POST /api/report</code> — prepare (default) or send a report</li>
-  </ul>
-  <footer>Wraps <code>nps.gov</code> sendemail.cfm. Not affiliated with the National Park Service. Contract verified 2026-06-15.</footer>
-</body>
-</html>`),
-);
+app.get("/favicon.svg", (c) => {
+  c.header("Content-Type", "image/svg+xml");
+  c.header("Cache-Control", "public, max-age=86400");
+  return c.body(faviconSvg());
+});
+
+app.get("/", (c) => c.html(renderApp()));
 
 export default app;

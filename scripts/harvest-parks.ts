@@ -67,13 +67,43 @@ async function listAllParkCodes(
   return out;
 }
 
+// Full unit list WITHOUT an API key. central.nps.gov is the endpoint nps.gov's
+// own "Find a Park" UI calls; its `apikey` is a public site-key shipped in the
+// browser bundle (find-a-park.js), not a secret. Returns all ~666 NPS units
+// (code + fullName + designation; no latLong — coords need the keyed Data API).
+const CENTRAL_KEY = "KXuXrDdge2Csv0xbC01JhhNNaDGcmICX";
+
+async function listAllParkCodesNoKey(): Promise<
+  Array<{ code: string; name: string; states: string[]; lat?: number; lng?: number }>
+> {
+  const r = await fetch(`https://central.nps.gov/units/api/v1/parks?apikey=${CENTRAL_KEY}`, {
+    headers: { "User-Agent": UA, Accept: "application/json" },
+  });
+  if (!r.ok) throw new Error(`central.nps.gov HTTP ${r.status}`);
+  const data = (await r.json()) as Array<{ parkCode?: string; code?: string; fullName?: string }>;
+  const seen = new Set<string>();
+  const out: Array<{ code: string; name: string; states: string[] }> = [];
+  for (const p of data) {
+    const code = (p.parkCode ?? p.code ?? "").toLowerCase().trim();
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
+    out.push({ code, name: p.fullName ?? code.toUpperCase(), states: [] });
+  }
+  return out;
+}
+
 // Pull the first sendemail.cfm recipient token + the real park name from a
 // park's contacts page (so --codes mode yields quality data without an API key).
 async function scrapePark(code: string): Promise<{ token: string | null; name: string | null }> {
-  const url = `https://www.nps.gov/${code}/contacts.htm`;
-  const r = await fetch(url, { headers: { "User-Agent": UA } });
-  if (!r.ok) return { token: null, name: null };
-  const html = await r.text();
+  const url = `https://www.nps.gov/${code.toLowerCase()}/contacts.htm`;
+  let html: string;
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": UA } });
+    if (!r.ok) return { token: null, name: null };
+    html = await r.text();
+  } catch {
+    return { token: null, name: null }; // transient network error — skip this unit
+  }
   const token = html.match(/sendemail\.cfm\?o=([0-9A-F]+)/i)?.[1] ?? null;
   // Title format: "Contact Us - <Park Name> (U.S. National Park Service)"
   const rawTitle = html.match(/<title>([^<]*)<\/title>/i)?.[1] ?? "";
@@ -101,8 +131,9 @@ async function main() {
     catalog = await listAllParkCodes(apiKey);
     console.error(`  ${catalog.length} parks found.`);
   } else {
-    console.error("No NPS_API_KEY and no --codes. Set the key or pass --codes goga,yose.");
-    process.exit(1);
+    console.error("Enumerating ALL NPS units via central.nps.gov (no key)…");
+    catalog = await listAllParkCodesNoKey();
+    console.error(`  ${catalog.length} units found. Scraping contact tokens…`);
   }
 
   const existing = JSON.parse(readFileSync(DATA_PATH, "utf8")) as {
@@ -120,15 +151,17 @@ async function main() {
       continue;
     }
     const placeholder = park.name === park.code.toUpperCase();
+    const prev = byCode.get(park.code.toLowerCase());
     const record: ParkRecord = {
       code: park.code,
       name: placeholder && scrapedName ? scrapedName : park.name,
       referrerPath: `/${park.code}/contacts.htm`,
       recipientToken: token,
       mailbox: "general",
-      states: park.states.length ? park.states : undefined,
-      lat: park.lat,
-      lng: park.lng,
+      states: park.states.length ? park.states : prev?.states,
+      // Preserve coords from a prior keyed harvest / seed (no-key mode has none).
+      lat: park.lat ?? prev?.lat,
+      lng: park.lng ?? prev?.lng,
     };
     if (byCode.has(park.code.toLowerCase())) updated++;
     else added++;
