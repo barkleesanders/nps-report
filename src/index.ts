@@ -57,6 +57,19 @@ app.use("*", async (c, next) => {
     c.req.path === "/" || c.req.path === "/about" ? PAGE_CSP : API_CSP,
   );
   c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+
+  // Workers Cache opt-in (2026-07-06): public parks data — cacheable so
+  // `cache.enabled` hits skip the Worker. /health stays no-store (a cached
+  // health response would mask an outage from monitors; without an explicit
+  // header CF would heuristically cache the bare 200 for 2h). Route-set
+  // Cache-Control always wins over these defaults.
+  if (!c.res.headers.get("Cache-Control")) {
+    if (c.req.path === "/health") {
+      c.header("Cache-Control", "no-store");
+    } else if (c.req.method === "GET" && c.res.status === 200) {
+      c.header("Cache-Control", "public, max-age=3600");
+    }
+  }
 });
 
 app.use("/api/*", cors());
