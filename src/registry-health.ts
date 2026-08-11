@@ -113,10 +113,28 @@ const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-/** Every `sendemail.cfm?o=…` recipient token advertised on a contacts page. */
+/**
+ * Every `sendemail.cfm?o=…` recipient token advertised on a contacts page.
+ *
+ * Shape is constrained deliberately, because a token extracted here can be
+ * ADOPTED by the healer — it gets written to KV and then interpolated into an
+ * outbound URL as the mailbox every visitor report is sent to. Hex-only already
+ * means a hostile or mangled page cannot inject a host, scheme or path (the
+ * origin is a hardcoded literal), so the residual risk is a garbage token of
+ * arbitrary length.
+ *
+ * DISPOSITION: defense-in-depth, not a closed leak. Real tokens measured across
+ * 29 live park pages on 2026-08-10 run 34–58 characters; no page has ever been
+ * observed serving anything else, so this closes no demonstrated hole. It is
+ * here because the value's provenance is a third party and its destination is
+ * persistent storage — a bound we control beats trusting a page we don't.
+ */
+const TOKEN_MIN = 16;
+const TOKEN_MAX = 128;
+
 export function extractPublishedTokens(html: string): string[] {
   return [...new Set([...html.matchAll(/sendemail\.cfm\?o=([0-9A-F]+)/gi)].map((m) => m[1] ?? ""))]
-    .filter(Boolean)
+    .filter((t) => t.length >= TOKEN_MIN && t.length <= TOKEN_MAX)
     .map((t) => t.toUpperCase());
 }
 
