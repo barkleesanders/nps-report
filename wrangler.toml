@@ -22,3 +22,19 @@ enabled = true
 
 [cache]
 enabled = true
+
+# Weekly consumer-path sweep of the park registry. `_meta.verified` in
+# parks.data.json is a HARVEST date, not a health claim — it decays silently
+# from the moment it is written. This cron re-asks the consumer's question
+# ("does this token still open a usable form?") across all 435 parks and stores
+# the answer, so registry health is continuously known rather than asserted.
+# Mondays 09:17 UTC — off the hour, so we aren't in the top-of-hour crowd
+# hitting nps.gov.
+[triggers]
+crons = ["17 9 * * 1"]
+
+# Last sweep result, so /api/registry/health answers instantly instead of
+# re-firing 435 requests at nps.gov per pageview.
+[[kv_namespaces]]
+binding = "REGISTRY_HEALTH"
+id = "d108754c2da44d74a9461ae87fd2a067"

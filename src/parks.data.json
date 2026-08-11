@@ -1,8 +1,10 @@
 {
   "_meta": {
     "note": "Park mailbox registry. recipientToken is the obfuscated o= value from each park's /contacts.htm 'Email Us' link.",
-    "verified": "2026-06-16",
-    "source": "https://www.nps.gov/<code>/contacts.htm sendemail.cfm links"
+    "verified": "2026-08-10",
+    "source": "https://www.nps.gov/<code>/contacts.htm sendemail.cfm links",
+    "coordinateSource": "central.nps.gov/units/api/v1/parks?select=code,geometry (GeoJSON Point centroid)",
+    "coordinatesUnavailable": "masi, neje — multi-site/trail units that publish no Point geometry upstream (verified against the live feed 2026-08-10). Tracked by COORDINATES_EXEMPT in src/parks.ts."
   },
   "parks": [
     {
@@ -640,7 +642,9 @@
       "name": "Carlsbad Caverns National Park",
       "referrerPath": "/cave/contacts.htm",
       "recipientToken": "4884CDBEA2C3AEAE9F841AA1FF18B9A047894F805296828F4C51A98808",
-      "mailbox": "general"
+      "mailbox": "general",
+      "lat": 32.1413502,
+      "lng": -104.5521084
     },
     {
       "code": "cavo",

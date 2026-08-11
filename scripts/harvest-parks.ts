@@ -73,18 +73,71 @@ async function listAllParkCodes(
 // GeoJSON Point {coordinates:[lng,lat]} so we get coords for GPS routing too.
 const CENTRAL_KEY = "KXuXrDdge2Csv0xbC01JhhNNaDGcmICX";
 
-async function listAllParkCodesNoKey(): Promise<
-  Array<{ code: string; name: string; states: string[]; lat?: number; lng?: number }>
+/**
+ * Coordinates for every code the feed answers to, INCLUDING alias codes.
+ *
+ * This map exists because the feed and nps.gov disagree about a unit's code.
+ * Carlsbad Caverns is `parkCode: "CACA"` upstream with `codes: ["CACA","CAVE"]`,
+ * but its website — and therefore its contact form and our registry key — is
+ * `cave`. A primary-key-only lookup finds nothing for `cave`, so Carlsbad
+ * Caverns sat in the registry with no coordinates and could never be selected
+ * by GPS. Silent: `nearestPark` just skips coordinate-less parks.
+ *
+ * Four units in the registry are alias-only matches (bepa/SEBE, cave/CACA,
+ * ddem/DWEI, whho/PRPA), so this is a class, not a one-off. Aliases never
+ * overwrite a primary code that already resolved.
+ */
+function coordinateIndex(
+  data: Array<{
+    parkCode?: string;
+    code?: string;
+    codes?: string[];
+    geometry?: { type?: string; coordinates?: number[] };
+  }>,
+): Map<string, { lat: number; lng: number }> {
+  const primary = new Map<string, { lat: number; lng: number }>();
+  const alias = new Map<string, { lat: number; lng: number }>();
+  for (const p of data) {
+    const g = p.geometry;
+    if (g?.type !== "Point" || !Array.isArray(g.coordinates) || g.coordinates.length < 2) continue;
+    const [lng, lat] = g.coordinates;
+    if (typeof lat !== "number" || typeof lng !== "number") continue;
+    const prim = (p.parkCode ?? p.code ?? "").toLowerCase().trim();
+    if (prim) primary.set(prim, { lat, lng });
+    for (const a of p.codes ?? []) {
+      const k = (a ?? "").toLowerCase().trim();
+      if (k && k !== prim) alias.set(k, { lat, lng });
+    }
+  }
+  for (const [k, v] of alias) if (!primary.has(k)) primary.set(k, v);
+  return primary;
+}
+
+async function fetchCentralUnits(): Promise<
+  Array<{
+    parkCode?: string;
+    code?: string;
+    codes?: string[];
+    fullName?: string;
+    geometry?: { type?: string; coordinates?: number[] };
+  }>
 > {
   const url = `https://central.nps.gov/units/api/v1/parks?select=code,geometry&apikey=${CENTRAL_KEY}`;
   const r = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
   if (!r.ok) throw new Error(`central.nps.gov HTTP ${r.status}`);
-  const data = (await r.json()) as Array<{
+  return (await r.json()) as Array<{
     parkCode?: string;
     code?: string;
+    codes?: string[];
     fullName?: string;
     geometry?: { type?: string; coordinates?: number[] };
   }>;
+}
+
+async function listAllParkCodesNoKey(): Promise<
+  Array<{ code: string; name: string; states: string[]; lat?: number; lng?: number }>
+> {
+  const data = await fetchCentralUnits();
   const seen = new Set<string>();
   const out: Array<{ code: string; name: string; states: string[]; lat?: number; lng?: number }> =
     [];
@@ -189,16 +242,54 @@ async function main() {
     await new Promise((res) => setTimeout(res, 250)); // be polite to nps.gov
   }
 
+  // Backfill coordinates for EVERY registry park still missing them, matching on
+  // primary OR alias code. Runs regardless of which enumeration path was used
+  // above, so a --codes or keyed harvest also picks up alias-coded units.
+  let backfilled = 0;
+  const stillMissing: string[] = [];
+  try {
+    const coords = coordinateIndex(await fetchCentralUnits());
+    for (const rec of byCode.values()) {
+      if (typeof rec.lat === "number" && typeof rec.lng === "number") continue;
+      const hit = coords.get(rec.code.toLowerCase());
+      if (hit) {
+        rec.lat = hit.lat;
+        rec.lng = hit.lng;
+        backfilled++;
+        console.error(`  ${rec.code}: coords backfilled (${hit.lat}, ${hit.lng})`);
+      } else {
+        stillMissing.push(rec.code);
+      }
+    }
+  } catch (err) {
+    console.error(`  coordinate backfill skipped: ${String(err)}`);
+  }
+
   const merged = {
     _meta: {
       note: "Park mailbox registry. recipientToken is the obfuscated o= value from each park's /contacts.htm 'Email Us' link.",
+      // HARVEST date, not a health claim: it says when tokens were last scraped,
+      // NOT that they still open a working form. Live health comes from the
+      // weekly consumer-path sweep (src/registry-health.ts).
       verified: new Date().toISOString().slice(0, 10),
       source: "https://www.nps.gov/<code>/contacts.htm sendemail.cfm links",
+      coordinateSource:
+        "central.nps.gov/units/api/v1/parks?select=code,geometry (GeoJSON Point centroid; matched on primary OR alias code)",
+      coordinatesUnavailable: stillMissing.length
+        ? `${stillMissing.join(", ")} — no Point geometry upstream. Each must be listed in COORDINATES_EXEMPT (src/parks.ts) or parks.test.ts fails.`
+        : "none",
     },
     parks: [...byCode.values()].sort((a, b) => a.code.localeCompare(b.code)),
   };
   writeFileSync(DATA_PATH, `${JSON.stringify(merged, null, 2)}\n`);
-  console.error(`\nWrote ${merged.parks.length} parks (${added} added, ${updated} updated).`);
+  console.error(
+    `\nWrote ${merged.parks.length} parks (${added} added, ${updated} updated, ${backfilled} coords backfilled).`,
+  );
+  if (stillMissing.length) {
+    console.error(
+      `WARNING: ${stillMissing.length} park(s) still have no coordinates and can never be GPS-selected: ${stillMissing.join(", ")}`,
+    );
+  }
 }
 
 main();
