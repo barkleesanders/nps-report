@@ -32,6 +32,9 @@
     "miniflare": {
       "undici": "^7.29.0",
       "sharp": "^0.35.0"
+    },
+    "vite": {
+      "postcss": "^8.5.23"
     }
   }
 }
