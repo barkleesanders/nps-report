@@ -177,14 +177,30 @@ async function scrapePark(code: string): Promise<{ token: string | null; name: s
     return { token: null, name: null }; // transient network error — skip this unit
   }
   const token = html.match(/sendemail\.cfm\?o=([0-9A-F]+)/i)?.[1] ?? null;
-  // Title format: "Contact Us - <Park Name> (U.S. National Park Service)"
+  return { token, name: parkNameFromTitle(html) };
+}
+
+/**
+ * Park name out of a contacts-page `<title>`.
+ *
+ * NPS does not use one title format. Both of these are live:
+ *   "Contact Us - Yosemite National Park (U.S. National Park Service)"
+ *   "Contacts - Selma To Montgomery National Historic Trail (U.S. Nat…)"
+ *
+ * The original cleanup only knew "Contact Us - ", so a 2026-08-11 harvest of
+ * `semo` wrote the name as "Contacts - Selma To Montgomery National Historic
+ * Trail" — which would have shipped straight into the park picker. Exported so
+ * the prefix list is testable rather than trusted.
+ */
+export function parkNameFromTitle(html: string): string | null {
   const rawTitle = html.match(/<title>([^<]*)<\/title>/i)?.[1] ?? "";
-  const name =
+  return (
     rawTitle
       .replace(/\(U\.S\.\s*National Park Service\)\s*$/i, "")
-      .replace(/^\s*contact us\s*[-–—]\s*/i, "")
-      .trim() || null;
-  return { token, name };
+      // "Contact Us -", "Contacts -", "Contact -" … all seen or plausible.
+      .replace(/^\s*contacts?(\s+us)?\s*[-–—:]\s*/i, "")
+      .trim() || null
+  );
 }
 
 async function main() {
@@ -226,7 +242,12 @@ async function main() {
     const prev = byCode.get(park.code.toLowerCase());
     const record: ParkRecord = {
       code: park.code,
-      name: placeholder && scrapedName ? scrapedName : park.name,
+      // Precedence: catalog name (NPS API / central feed) > the name already
+      // in the registry > a scraped page title. In --codes mode the catalog
+      // name is just the uppercased code, so without `prev?.name` here a
+      // targeted re-harvest of 5 parks would overwrite good API-sourced names
+      // with whatever the page <title> happens to say.
+      name: placeholder ? (prev?.name ?? scrapedName ?? park.name) : park.name,
       referrerPath: `/${park.code}/contacts.htm`,
       recipientToken: token,
       mailbox: "general",
