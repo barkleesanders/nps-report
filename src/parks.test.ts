@@ -68,3 +68,30 @@ describe("GPS routing reaches the parks it claims to", () => {
     expect(unreachable).toEqual([]);
   });
 });
+
+describe("harvested park names are clean", () => {
+  // A targeted `npm run harvest --codes …` on 2026-08-11 wrote semo's name as
+  // "Contacts - Selma To Montgomery National Historic Trail": NPS uses more
+  // than one <title> format and the scraper only stripped "Contact Us - ".
+  // These names render in the park picker, so the whole set is asserted, not
+  // just the one that broke.
+  it("no park name carries a page-title artifact", () => {
+    const bad = listParks()
+      .filter(
+        (p) =>
+          /^\s*contacts?(\s+us)?\s*[-–—:]/i.test(p.name) ||
+          /U\.S\.\s*National Park Service/i.test(p.name),
+      )
+      .map((p) => `${p.code}: ${p.name}`);
+    expect(bad).toEqual([]);
+  });
+
+  it("no park name is a bare uppercased code placeholder", () => {
+    // `--codes` mode seeds name = CODE.toUpperCase(); if precedence ever fails,
+    // a park ships as "SEMO" instead of its real name.
+    const bad = listParks()
+      .filter((p) => p.name === p.code.toUpperCase())
+      .map((p) => p.code);
+    expect(bad).toEqual([]);
+  });
+});

@@ -1,10 +1,10 @@
 {
   "_meta": {
     "note": "Park mailbox registry. recipientToken is the obfuscated o= value from each park's /contacts.htm 'Email Us' link.",
-    "verified": "2026-08-10",
+    "verified": "2026-08-11",
     "source": "https://www.nps.gov/<code>/contacts.htm sendemail.cfm links",
-    "coordinateSource": "central.nps.gov/units/api/v1/parks?select=code,geometry (GeoJSON Point centroid)",
-    "coordinatesUnavailable": "masi, neje — multi-site/trail units that publish no Point geometry upstream (verified against the live feed 2026-08-10). Tracked by COORDINATES_EXEMPT in src/parks.ts."
+    "coordinateSource": "central.nps.gov/units/api/v1/parks?select=code,geometry (GeoJSON Point centroid; matched on primary OR alias code)",
+    "coordinatesUnavailable": "masi, neje — no Point geometry upstream. Each must be listed in COORDINATES_EXEMPT (src/parks.ts) or parks.test.ts fails."
   },
   "parks": [
     {
@@ -155,7 +155,7 @@
       "code": "anti",
       "name": "Antietam National Battlefield",
       "referrerPath": "/anti/contacts.htm",
-      "recipientToken": "6489D2AD94D2909E98BA10A4D919BBBE089A4999",
+      "recipientToken": "488DC9B28EC7A6B9ABA807AEF714B1AC4DBD489F4FF88B9049",
       "mailbox": "general",
       "lat": 39.4683655,
       "lng": -77.7379951
@@ -272,7 +272,7 @@
       "code": "bepa",
       "name": "Belmont-Paul Women's Equality National Monument",
       "referrerPath": "/bepa/contacts.htm",
-      "recipientToken": "468CD0BEA2DFA6A880BE01BCED37A5BD55D341804A",
+      "recipientToken": "65A4F69AA2F0A0B199AE1DA6FA16BFA4499355AF52A69FD15810B8",
       "mailbox": "general",
       "lat": 38.8923354,
       "lng": -77.0038165
@@ -1559,7 +1559,7 @@
       "code": "goga",
       "name": "Golden Gate National Recreation Area",
       "referrerPath": "/goga/contacts.htm",
-      "recipientToken": "4C8ADCBAA2DAA1BA9B9B1DBFEA59ACA250",
+      "recipientToken": "6CAAFC9AA2FAA1BA9B9B1DBFEA59ACA250",
       "mailbox": "general",
       "lat": 37.8614023,
       "lng": -122.6058694
@@ -3139,7 +3139,7 @@
       "code": "rowi",
       "name": "Roger Williams National Memorial",
       "referrerPath": "/rowi/contacts.htm",
-      "recipientToken": "618AD3B5A2FEACB29DBD158FF707B8E3419250",
+      "recipientToken": "79AAEC92A2FAA1BA9B9B1DBFEA59ACA250",
       "mailbox": "general",
       "lat": 41.8298955,
       "lng": -71.4105667
@@ -3337,7 +3337,7 @@
       "code": "semo",
       "name": "Selma To Montgomery National Historic Trail",
       "referrerPath": "/semo/contacts.htm",
-      "recipientToken": "5F80DCBA93ECBCB386BE1DBCFC198BA3568E088853A0",
+      "recipientToken": "78A0F694A2FAA1A891A903BDFC03AAB94F9248AF52A69FD15810B8",
       "mailbox": "general",
       "lat": 32.2708209,
       "lng": -86.728237

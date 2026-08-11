@@ -18,7 +18,14 @@ const here = dirname(fileURLToPath(import.meta.url));
 // A REAL capture of https://www.nps.gov/goga/contacts.htm — the exact artifact
 // classifyContactsPage() parses, not a hand-written approximation.
 const GOGA_CONTACTS = readFileSync(join(here, "__fixtures__/goga-contacts.html"), "utf8");
-const GOGA_STORED = getPark("goga")?.recipientToken ?? "";
+
+// The token the JUNE snapshot published. Pinned to the fixture, NOT to
+// parks.data.json — these unit tests assert parser behaviour and must not
+// break every time the registry is re-harvested. (They did exactly that on
+// 2026-08-11 when goga's token was folded in from the healer.)
+const GOGA_JUNE_TOKEN = extractPublishedTokens(GOGA_CONTACTS)[0] ?? "";
+// What the registry holds right now — used only to assert the drift is real.
+const GOGA_CURRENT = getPark("goga")?.recipientToken ?? "";
 
 describe("extractPublishedTokens (real contacts page)", () => {
   it("finds every sendemail recipient token on the page", () => {
@@ -31,7 +38,7 @@ describe("extractPublishedTokens (real contacts page)", () => {
 describe("classifyContactsPage", () => {
   it("reports ok when the stored token is published on the page", () => {
     // The committed June snapshot still contains the token we store.
-    expect(classifyContactsPage("goga", GOGA_STORED, GOGA_CONTACTS, 200)).toMatchObject({
+    expect(classifyContactsPage("goga", GOGA_JUNE_TOKEN, GOGA_CONTACTS, 200)).toMatchObject({
       ok: true,
     });
   });
@@ -44,8 +51,8 @@ describe("classifyContactsPage", () => {
   // replacement a measurement rather than a formality: mutate the token, and
   // the probe MUST notice.
   it("reports drift when the stored token is NOT on the page", () => {
-    const mutated = GOGA_STORED.replace(/^.{6}/, "ABCDEF");
-    expect(mutated).not.toBe(GOGA_STORED);
+    const mutated = GOGA_JUNE_TOKEN.replace(/^.{6}/, "ABCDEF");
+    expect(mutated).not.toBe(GOGA_JUNE_TOKEN);
     expect(classifyContactsPage("goga", mutated, GOGA_CONTACTS, 200)).toMatchObject({
       ok: false,
       reason: "token_not_published",
@@ -56,9 +63,9 @@ describe("classifyContactsPage", () => {
     // A page with no tokens at all is a broken instrument, not evidence of
     // drift — conflating them would fire 435 false drift alerts on a redesign.
     expect(
-      classifyContactsPage("goga", GOGA_STORED, "<html>maintenance</html>", 200),
+      classifyContactsPage("goga", GOGA_JUNE_TOKEN, "<html>maintenance</html>", 200),
     ).toMatchObject({ ok: false, reason: "no_tokens_on_page" });
-    expect(classifyContactsPage("goga", GOGA_STORED, "", 404)).toMatchObject({
+    expect(classifyContactsPage("goga", GOGA_JUNE_TOKEN, "", 404)).toMatchObject({
       ok: false,
       reason: "http_error",
     });
@@ -76,7 +83,7 @@ describe("probePark", () => {
       return new Response(GOGA_CONTACTS, { status: 200 });
     }) as unknown as typeof fetch;
     const r = await probePark(
-      { code: "goga", recipientToken: GOGA_STORED, referrerPath: "/goga/contacts.htm" },
+      { code: "goga", recipientToken: GOGA_JUNE_TOKEN, referrerPath: "/goga/contacts.htm" },
       impl,
     );
     expect(r.ok).toBe(true);
@@ -90,7 +97,7 @@ describe("probePark", () => {
       throw new Error("offline");
     }) as unknown as typeof fetch;
     const r = await probePark(
-      { code: "goga", recipientToken: GOGA_STORED, referrerPath: "/goga/contacts.htm" },
+      { code: "goga", recipientToken: GOGA_JUNE_TOKEN, referrerPath: "/goga/contacts.htm" },
       impl,
     );
     expect(r).toMatchObject({ ok: false, reason: "network_error" });
@@ -239,5 +246,19 @@ describe("token shape bound (defense-in-depth)", () => {
     const toks = extractPublishedTokens(GOGA_CONTACTS);
     expect(toks.length).toBeGreaterThan(1);
     for (const t of toks) expect(t.length).toBeGreaterThanOrEqual(16);
+  });
+});
+
+describe("goga drift is real and documented", () => {
+  // This is the assertion that the whole registry-health feature rests on: the
+  // June snapshot published a token the park no longer does. Keeping it as a
+  // test means the evidence survives even after the registry is re-harvested.
+  it("the current registry token is NOT the one the June page published", () => {
+    expect(GOGA_CURRENT).toBeTruthy();
+    expect(extractPublishedTokens(GOGA_CONTACTS)).not.toContain(GOGA_CURRENT.toUpperCase());
+  });
+
+  it("and the June token is the one the June page published", () => {
+    expect(extractPublishedTokens(GOGA_CONTACTS)).toContain(GOGA_JUNE_TOKEN);
   });
 });
