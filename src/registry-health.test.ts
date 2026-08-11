@@ -98,7 +98,7 @@ describe("probePark", () => {
 
   it("does not treat a form-bearing page with the wrong tokens as healthy", async () => {
     const r = await probePark(
-      { code: "goga", recipientToken: "0000DEADBEEF", referrerPath: "/goga/contacts.htm" },
+      { code: "goga", recipientToken: "0000DEADBEEF0000", referrerPath: "/goga/contacts.htm" },
       html(GOGA_CONTACTS),
     );
     expect(r.ok).toBe(false);
@@ -109,17 +109,19 @@ describe("probePark", () => {
 describe("sweepRegistry", () => {
   it("counts drift and unreadable separately and never throws", async () => {
     const parks = [
-      { code: "a", name: "A", referrerPath: "/a/contacts.htm", recipientToken: "AAAA" },
-      { code: "b", name: "B", referrerPath: "/b/contacts.htm", recipientToken: "BBBB" },
-      { code: "c", name: "C", referrerPath: "/c/contacts.htm", recipientToken: "CCCC" },
+      { code: "a", name: "A", referrerPath: "/a/contacts.htm", recipientToken: "AAAAAAAAAAAAAAAA" },
+      { code: "b", name: "B", referrerPath: "/b/contacts.htm", recipientToken: "BBBBBBBBBBBBBBBB" },
+      { code: "c", name: "C", referrerPath: "/c/contacts.htm", recipientToken: "CCCCCCCCCCCCCCCC" },
     ];
     const impl = (async (u: string | URL | Request) => {
       const s = String(u);
-      if (s.includes("/a/")) return new Response('href="sendemail.cfm?o=AAAA"', { status: 200 });
+      if (s.includes("/a/"))
+        return new Response('href="sendemail.cfm?o=AAAAAAAAAAAAAAAA"', { status: 200 });
       // Valid hex, but a DIFFERENT token than stored -> drift. (Using a
       // non-hex placeholder here would extract zero tokens and be classified
       // `no_tokens_on_page` instead, which is a different finding.)
-      if (s.includes("/b/")) return new Response('href="sendemail.cfm?o=DDDD"', { status: 200 });
+      if (s.includes("/b/"))
+        return new Response('href="sendemail.cfm?o=DDDDDDDDDDDDDDDD"', { status: 200 });
       throw new Error("boom");
     }) as unknown as typeof fetch;
 
@@ -133,7 +135,9 @@ describe("sweepRegistry", () => {
 
   it("marks a limited sweep as partial", async () => {
     const impl = (async () =>
-      new Response('href="sendemail.cfm?o=AAAA"', { status: 200 })) as unknown as typeof fetch;
+      new Response('href="sendemail.cfm?o=AAAAAAAAAAAAAAAA"', {
+        status: 200,
+      })) as unknown as typeof fetch;
     const sweep = await sweepRegistry({ limit: 2, fetchImpl: impl, concurrency: 2 });
     expect(sweep.total).toBe(2);
     expect(sweep.partial).toBe(true);
@@ -169,8 +173,8 @@ describe("planHeals — the safety cap", () => {
       code: `p${i}`,
       ok: false as const,
       reason: "token_not_published" as const,
-      storedToken: "AAAA",
-      publishedToken: "BBBB",
+      storedToken: "AAAAAAAAAAAAAAAA",
+      publishedToken: "BBBBBBBBBBBBBBBB",
       publishedCount: 1,
     }));
   const sweep = (total: number, fails: ParkProbe[]): RegistrySweep => ({
@@ -188,7 +192,11 @@ describe("planHeals — the safety cap", () => {
     const plan = planHeals(sweep(435, drifted(5)));
     expect(plan.suppressed).toBe(false);
     expect(plan.heals.map((h) => h.code)).toEqual(["p0", "p1", "p2", "p3", "p4"]);
-    expect(plan.heals[0]).toMatchObject({ from: "AAAA", to: "BBBB", candidates: 1 });
+    expect(plan.heals[0]).toMatchObject({
+      from: "AAAAAAAAAAAAAAAA",
+      to: "BBBBBBBBBBBBBBBB",
+      candidates: 1,
+    });
   });
 
   // THE control that matters most: a site-wide change must NOT be auto-adopted.
@@ -214,5 +222,22 @@ describe("planHeals — the safety cap", () => {
     const plan = planHeals(sweep(435, []));
     expect(plan.heals).toEqual([]);
     expect(plan.suppressed).toBe(false);
+  });
+});
+
+describe("token shape bound (defense-in-depth)", () => {
+  // The healer ADOPTS whatever this returns — into KV, then into the outbound
+  // URL every report is addressed with. Hex-only already blocks host/scheme
+  // injection; this bounds the length. Real tokens are 34-58 chars.
+  it("ignores absurdly long and absurdly short hex runs", () => {
+    const huge = "A".repeat(5000);
+    expect(extractPublishedTokens(`sendemail.cfm?o=${huge}`)).toEqual([]);
+    expect(extractPublishedTokens("sendemail.cfm?o=AB")).toEqual([]);
+  });
+
+  it("still accepts every token on the real park page", () => {
+    const toks = extractPublishedTokens(GOGA_CONTACTS);
+    expect(toks.length).toBeGreaterThan(1);
+    for (const t of toks) expect(t.length).toBeGreaterThanOrEqual(16);
   });
 });
