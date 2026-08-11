@@ -44,7 +44,7 @@
 // NOT "this park is broken" — a token may well keep working after the page
 // stops advertising it. It is reported as drift, never as failure.
 
-import { listParks, type Park } from "./parks";
+import { getPark, listParks, type Park } from "./parks";
 
 export type ProbeReason =
   /** Stored token is no longer published on the park's contacts page — re-harvest. */
@@ -366,18 +366,42 @@ export async function runScheduledSweep(
     } catch (err) {
       console.log(JSON.stringify({ event: "registry_health_persist_failed", error: String(err) }));
     }
-    if (heals.length) {
+    // Parks that came back OK are, by definition, publishing the token that is
+    // now baked into the bundle — so any override for them is dead weight.
+    // Pruning matters because the alternative is unbounded: every
+    // `npm run harvest` makes the previous sweep's overrides redundant, and a
+    // stale list makes /api/registry/health claim parks are being redirected
+    // when they are not. Only prune on a CONFIRMED ok — never on an unreadable
+    // park, or a bad-network week would drop a live override.
+    const okCodes = new Set(
+      sweep.failures.length === sweep.total
+        ? []
+        : listParks()
+            .map((p) => p.code)
+            .filter((c) => !sweep.failures.some((f) => f.code === c)),
+    );
+    if (heals.length || okCodes.size) {
       try {
         // Merge, never replace: a park healed three weeks ago must keep its
         // override even if this week's sweep could not read its page.
         const prev = (await kv.get<TokenOverrides>(OVERRIDES_KV_KEY, "json")) ?? {};
+        const pruned: string[] = [];
+        for (const code of Object.keys(prev)) {
+          const baked = getPark(code)?.recipientToken?.toUpperCase();
+          if (okCodes.has(code) && baked && baked === prev[code]?.to?.toUpperCase()) {
+            delete prev[code];
+            pruned.push(code);
+          }
+        }
         for (const h of heals) prev[h.code] = h;
+        if (!heals.length && !pruned.length) return sweep;
         await kv.put(OVERRIDES_KV_KEY, JSON.stringify(prev));
         console.log(
           JSON.stringify({
             event: "registry_tokens_healed",
             count: heals.length,
             codes: heals.map((h) => h.code),
+            prunedRedundant: pruned,
             totalOverrides: Object.keys(prev).length,
           }),
         );
