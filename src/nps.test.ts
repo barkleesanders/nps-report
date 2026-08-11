@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -155,7 +155,7 @@ describe("submitReport — dry run is the default", () => {
 });
 
 describe("parseSubmitResult", () => {
-  it("confirmed on positive phrase, rejected on error redisplay, unknown otherwise", () => {
+  it("confirmed on positive phrase, rejected on error redisplay", () => {
     expect(parseSubmitResult("Thank you, your message has been sent.", 200)).toEqual({
       ok: true,
       signal: "confirmed",
@@ -163,10 +163,72 @@ describe("parseSubmitResult", () => {
     expect(
       parseSubmitResult('<form name="formMail">Please correct the required fields</form>', 200),
     ).toEqual({ ok: false, signal: "rejected" });
-    expect(parseSubmitResult("<html>unrelated</html>", 200)).toEqual({
+    expect(parseSubmitResult("oops", 500)).toEqual({ ok: false, signal: "rejected" });
+  });
+
+  // The behaviour the audit flagged: an unrecognised confirmation page used to
+  // return ok:false, telling a visitor their report failed when the park had
+  // already received it. NPS issues no case number, so their only recourse is
+  // to send again — a duplicate the park can never de-duplicate.
+  it("treats an unrecognised 2xx page with no form as SENT, not failed", () => {
+    expect(parseSubmitResult("<html>Your submission is complete.</html>", 200)).toEqual({
+      ok: true,
+      signal: "unknown",
+    });
+  });
+
+  it("treats a redisplayed form with no confirmation as NOT sent", () => {
+    // The form coming back is the ColdFusion bounce shape even when the error
+    // text is missing or reworded, so this direction stays ok:false.
+    expect(parseSubmitResult('<form name="formMail"><input></form>', 200)).toEqual({
       ok: false,
       signal: "unknown",
     });
-    expect(parseSubmitResult("oops", 500)).toEqual({ ok: false, signal: "rejected" });
+  });
+
+  // NEGATIVE CONTROL against a REAL artifact. The GET form is the closest thing
+  // we have to a real failure response, and it must never read as success. This
+  // is the one real-input assertion this function has — see
+  // __fixtures__/POST-RESPONSE-MISSING.md for why there is no real POST fixture.
+  it("never reports the real NPS form page as a confirmed send", () => {
+    const r = parseSubmitResult(FORM_HTML, 200);
+    expect(r.signal).not.toBe("confirmed");
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe("fixture honesty", () => {
+  // parseSubmitResult parses a POST *response*; every HTML fixture we own is a
+  // GET of the *form*. Having fixtures is not the property that matters —
+  // having a fixture of the artifact the function actually parses is. This test
+  // fails the moment someone deletes the marker without capturing the response,
+  // so the gap cannot quietly reappear as a comment claiming verification.
+  const fixtureDir = join(here, "__fixtures__");
+  const marker = join(fixtureDir, "POST-RESPONSE-MISSING.md");
+
+  it("documents the missing POST-response fixture until one is captured", () => {
+    const captured = ["sendemail-post-success.html", "sendemail-post-rejected.html"].every((f) =>
+      existsSync(join(fixtureDir, f)),
+    );
+    if (captured) {
+      expect(
+        existsSync(marker),
+        "real POST fixtures exist — delete POST-RESPONSE-MISSING.md and assert against them",
+      ).toBe(false);
+      return;
+    }
+    expect(
+      existsSync(marker),
+      "no real POST-response fixture exists; the gap must stay documented",
+    ).toBe(true);
+  });
+
+  it("keeps nps.ts from re-asserting a verification it cannot show", () => {
+    const src = readFileSync(join(here, "nps.ts"), "utf8");
+    const claims = src.match(/VERIFIED[^\n]*live submission/gi) ?? [];
+    expect(
+      claims,
+      "nps.ts claims a verified live submission, but no POST response is saved to prove it",
+    ).toEqual([]);
   });
 });

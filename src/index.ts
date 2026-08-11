@@ -22,7 +22,13 @@ import { analyzePhoto } from "./ai";
 import { NPS_CATEGORIES, normalizeCategory } from "./categories";
 import { isValidLatLng, locationLine, nearestPark } from "./geo";
 import { NpsReportError, type ReportInput, submitReport } from "./nps";
-import { getPark, listParks, publicPark } from "./parks";
+import { getPark, listParks, publicPark, registryHarvestedAt } from "./parks";
+import {
+  HEALTH_KV_KEY,
+  type RegistrySweep,
+  runScheduledSweep,
+  sweepRegistry,
+} from "./registry-health";
 import { faviconSvg, renderAbout, renderApp } from "./ui";
 
 // Strict CSP for the API + a slightly looser one for the HTML page (Google
@@ -42,6 +48,8 @@ interface Env {
   DEFAULT_FROM_NAME?: string;
   DEFAULT_FROM_EMAIL?: string;
   NPS_API_KEY?: string;
+  /** Stores the weekly consumer-path sweep result (see registry-health.ts). */
+  REGISTRY_HEALTH?: KVNamespace;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -279,6 +287,59 @@ app.post("/api/report", async (c) => {
   }
 });
 
+// ---- /api/registry/health : is the harvested registry still usable? --------
+
+app.get("/api/registry/health", async (c) => {
+  c.header("Cache-Control", "public, max-age=300");
+  const harvestedAt = registryHarvestedAt();
+
+  // Live sample path: ?sample=N probes N parks right now. Bounded hard — this
+  // is a public endpoint and each probe is a request to nps.gov.
+  const sampleParam = c.req.query("sample");
+  if (sampleParam) {
+    const n = Number.parseInt(sampleParam, 10);
+    if (!Number.isFinite(n) || n < 1 || n > 25) {
+      return c.json({ error: "bad_sample", message: "sample must be 1-25" }, 400);
+    }
+    const sweep = await sweepRegistry({ limit: n, concurrency: 4 });
+    return c.json({ source: "live-sample", harvestedAt, ...sweep });
+  }
+
+  // Default: the last scheduled whole-registry sweep.
+  let stored: RegistrySweep | null = null;
+  if (c.env.REGISTRY_HEALTH) {
+    try {
+      stored = await c.env.REGISTRY_HEALTH.get<RegistrySweep>(HEALTH_KV_KEY, "json");
+    } catch (err) {
+      console.log(JSON.stringify({ event: "registry_health_read_failed", error: String(err) }));
+    }
+  }
+  if (!stored) {
+    // Say WHY there is no answer. "No data yet" and "storage is broken" are
+    // different problems, and neither is "the registry is healthy".
+    return c.json(
+      {
+        source: "none",
+        harvestedAt,
+        message: c.env.REGISTRY_HEALTH
+          ? "No sweep recorded yet — the weekly cron has not run. Use ?sample=10 to probe live."
+          : "REGISTRY_HEALTH KV is not bound; scheduled sweeps cannot be stored.",
+        registrySize: listParks().length,
+      },
+      503,
+    );
+  }
+  const ageHours = Math.round((Date.now() - Date.parse(stored.checkedAt)) / 36e5);
+  return c.json({
+    source: "last-scheduled-sweep",
+    harvestedAt,
+    ageHours,
+    // A sweep older than ~2 cron periods means the cron itself stopped.
+    stale: ageHours > 24 * 15,
+    ...stored,
+  });
+});
+
 app.get("/favicon.svg", (c) => {
   c.header("Content-Type", "image/svg+xml");
   c.header("Cache-Control", "public, max-age=86400");
@@ -288,4 +349,13 @@ app.get("/favicon.svg", (c) => {
 app.get("/", (c) => c.html(renderApp()));
 app.get("/about", (c) => c.html(renderAbout()));
 
-export default app;
+export default {
+  fetch: app.fetch,
+  /**
+   * Weekly consumer-path sweep (see wrangler.toml [triggers]). Awaited via
+   * waitUntil so the sweep is not cut off when the handler returns.
+   */
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runScheduledSweep(env.REGISTRY_HEALTH));
+  },
+} satisfies ExportedHandler<Env>;

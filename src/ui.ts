@@ -2,8 +2,17 @@
 // re-skinned for the National Park Service (forest green / cream / gold).
 //
 // Hand-rolled CSS (no Tailwind CDN) so the page passes a tight CSP + a11y gate.
-// Flow: GPS auto-routes to nearest park -> snap a photo -> AI drafts the report
+// Flow: photo (its EXIF GPS routes the park) -> AI drafts the report
 // -> review/edit -> Preview (dry run) -> Send (NPS mails the park).
+//
+// The inline <script> below is assembled from this file's template literal.
+// NOTHING in the toolchain parses code inside a template literal — tsc, biome
+// and vitest are all blind to it — so `ui.test.ts` compiles every inline script
+// out of the rendered HTML with `new Function()` as an explicit parse gate.
+// The EXIF readers are NOT re-written here: they are serialised out of the
+// unit-tested `./exif` module, so the browser runs the exact text the tests ran.
+
+import { readExifGps, readExifTakenAt } from "./exif";
 
 const GREEN = "#166534";
 const GREEN_DARK = "#14532d";
@@ -123,9 +132,10 @@ export function renderApp(): string {
       <label class="drop" id="drop" for="photo">
         <div class="big">📷</div>
         <div style="margin-top:.4rem;font-weight:700">Tap to add a photo of the issue</div>
-        <div class="hint">AI reads it and drafts your report</div>
+        <div class="hint">AI reads it, and its location pins the right park</div>
       </label>
       <input id="photo" type="file" accept="image/*" capture="environment" class="hidden">
+      <div id="photo-note" class="hint hidden" role="status" aria-live="polite" style="margin-top:.5rem"></div>
       <img id="preview" class="preview-img hidden" alt="Selected photo preview">
       <button id="analyze" class="btn btn-gold hidden" style="margin-top:.7rem" type="button">✨ Analyze photo with AI</button>
     </section>
@@ -175,7 +185,68 @@ export function renderApp(): string {
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state = { lat: null, lng: null, photoBytes: null, photoB64: null };
+
+// EXIF readers — serialised verbatim from src/exif.ts, which unit-tests them
+// (including this exact toString() round-trip). Do not hand-edit here.
+${readExifGps.toString()}
+${readExifTakenAt.toString()}
+
+const state = {
+  // Where the PHONE is now. A weak proxy for where the photo was taken.
+  deviceLat: null, deviceLng: null,
+  // Where the PHOTO was taken, from its own EXIF. Authoritative when present.
+  photoLat: null, photoLng: null,
+  takenAt: null,
+  photoB64: null,
+  // Set once the visitor picks a park by hand — neither GPS source may
+  // override an explicit choice after that.
+  parkPickedByUser: false,
+};
+
+// SINGLE source of truth for "where is this report about".
+//
+// The photo's EXIF beats live GPS, always. National parks have no signal, so
+// the normal flow is: photograph the broken railing on the trail, then submit
+// hours later from the hotel or the drive home. Routing on the phone's CURRENT
+// position sends that report to whichever park is nearest the hotel —
+// confidently, silently, and to the wrong rangers. The photo already knows.
+function coords() {
+  if (state.photoLat !== null && state.photoLng !== null) {
+    return { lat: state.photoLat, lng: state.photoLng, source: 'photo' };
+  }
+  if (state.deviceLat !== null && state.deviceLng !== null) {
+    return { lat: state.deviceLat, lng: state.deviceLng, source: 'device' };
+  }
+  return { lat: null, lng: null, source: 'none' };
+}
+
+// The ONLY place park routing happens, so photo-EXIF and device-GPS can never
+// drift apart in how they resolve or how they label themselves.
+async function routeToNearestPark(force) {
+  const c = coords();
+  if (c.lat === null) return;
+  if (state.parkPickedByUser && !force) return;
+  try {
+    const loc = await (await fetch('/api/locate', {
+      method: 'POST', headers: {'content-type':'application/json'},
+      body: JSON.stringify({ lat: c.lat, lng: c.lng })
+    })).json();
+    if (!loc.nearestPark) { $('gps-txt').textContent = 'Located'; return; }
+    $('park').value = loc.nearestPark.code;
+    $('park-name').textContent = loc.nearestPark.name;
+    $('park-search').value = loc.nearestPark.name;
+    $('gps').querySelector('.dot').classList.add('live');
+    if (c.source === 'photo') {
+      $('gps-txt').textContent = 'From photo';
+      $('park-hint').textContent = 'Matched from where the photo was taken (~' +
+        loc.nearestPark.distanceKm + ' km away), not your current location. Type above to override.';
+    } else {
+      $('gps-txt').textContent = 'Near ' + loc.nearestPark.name.split(' National')[0];
+      $('park-hint').textContent = '~' + loc.nearestPark.distanceKm +
+        ' km from your current location. Add a photo taken at the spot for a more accurate match.';
+    }
+  } catch { $('gps-txt').textContent = 'Located'; }
+}
 
 // ---- init: categories + parks + geolocation ----
 async function init() {
@@ -190,21 +261,13 @@ async function init() {
     state.parks = data.parks.sort((a,b)=>a.name.localeCompare(b.name));
     setupParkSearch();
   } catch {}
-  // geolocation -> nearest park
+  // geolocation -> nearest park (only while no photo has supplied coordinates)
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(async (pos) => {
-      state.lat = pos.coords.latitude; state.lng = pos.coords.longitude;
-      try {
-        const loc = await (await fetch('/api/locate', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({lat:state.lat,lng:state.lng})})).json();
-        if (loc.nearestPark) {
-          $('park').value = loc.nearestPark.code;
-          $('park-name').textContent = loc.nearestPark.name;
-          $('park-search').value = loc.nearestPark.name;
-          $('gps-txt').textContent = 'Near ' + (loc.nearestPark.name.split(' National')[0]);
-          $('gps').querySelector('.dot').classList.add('live');
-          $('park-hint').textContent = '~' + loc.nearestPark.distanceKm + ' km from your location. Change it if needed.';
-        } else { $('gps-txt').textContent = 'Located'; }
-      } catch { $('gps-txt').textContent = 'Located'; }
+      state.deviceLat = pos.coords.latitude; state.deviceLng = pos.coords.longitude;
+      // A slow fix can land AFTER the visitor has already added a geotagged
+      // photo; coords() prefers the photo, so this cannot clobber it.
+      await routeToNearestPark(false);
     }, () => { $('gps-txt').textContent = 'No GPS'; }, {enableHighAccuracy:true, timeout:8000});
   } else { $('gps-txt').textContent = 'No GPS'; }
 }
@@ -218,6 +281,8 @@ function setupParkSearch() {
     $('park').value = p.code;
     $('park-name').textContent = p.name;
     input.value = p.name;
+    // An explicit choice outranks both GPS sources from here on.
+    state.parkPickedByUser = true;
     $('park-hint').textContent = 'Reporting to ' + p.name + '. Type to change.';
     close();
   };
@@ -256,22 +321,110 @@ $('drop').addEventListener('dragover', e=>{e.preventDefault();$('drop').classLis
 $('drop').addEventListener('dragleave', ()=>$('drop').classList.remove('over'));
 $('drop').addEventListener('drop', e=>{e.preventDefault();$('drop').classList.remove('over');if(e.dataTransfer.files[0])loadPhoto(e.dataTransfer.files[0]);});
 $('photo').addEventListener('change', e=>{if(e.target.files[0])loadPhoto(e.target.files[0]);});
+window.addEventListener('unhandledrejection', (e) => {
+  // loadPhoto is async and fired from event handlers; a rejection here would
+  // otherwise leave the "Reading photo…" note stuck forever with no clue why.
+  const note = $('photo-note');
+  if (note && note.textContent === 'Reading photo…') {
+    note.textContent = 'Could not read that image — try another photo.';
+  }
+  console.error('unhandled', e.reason);
+});
 
-function loadPhoto(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    const url = reader.result;
-    state.photoB64 = String(url).split(',')[1];
-    $('preview').src = url; $('preview').classList.remove('hidden');
-    $('analyze').classList.remove('hidden');
-  };
-  reader.readAsDataURL(file);
+// Upload budget. A modern phone photo is 3-5 MB; base64 inflates it ~33% and it
+// then travels inside a JSON body, so a 4 MB photo becomes a ~5.3 MB request —
+// over park cell service, before any AI runs. 1600px is comfortably more than
+// the vision model uses, and takes that to a few hundred KB.
+const MAX_EDGE = 1600;
+const JPEG_QUALITY = 0.82;
+const SKIP_RESIZE_UNDER = 900 * 1024;
+
+const kb = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
+
+function readAsDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error('could not read the file'));
+    r.readAsDataURL(blob);
+  });
+}
+
+// Returns a downscaled JPEG data URL, or null to keep the original.
+function downscale(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const longest = Math.max(img.width, img.height);
+      const scale = longest > MAX_EDGE ? MAX_EDGE / longest : 1;
+      if (scale === 1 && file.size <= SKIP_RESIZE_UNDER) { URL.revokeObjectURL(url); resolve(null); return; }
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(img.width * scale));
+        cv.height = Math.max(1, Math.round(img.height * scale));
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        const out = cv.toDataURL('image/jpeg', JPEG_QUALITY);
+        URL.revokeObjectURL(url);
+        resolve(out);
+      } catch { URL.revokeObjectURL(url); resolve(null); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+async function loadPhoto(file) {
+  $('photo-note').textContent = 'Reading photo…';
+  $('photo-note').classList.remove('hidden');
+  let originalBytes = null;
+  try { originalBytes = new Uint8Array(await file.arrayBuffer()); } catch {}
+
+  // ORDER MATTERS: EXIF comes off the ORIGINAL bytes. The canvas downscale
+  // below re-encodes the pixels and drops every metadata block with them, so
+  // reading EXIF after resizing would always return null.
+  let gps = null, takenAt = null;
+  if (originalBytes) {
+    try { gps = readExifGps(originalBytes); } catch {}
+    try { takenAt = readExifTakenAt(originalBytes); } catch {}
+  }
+  if (gps) {
+    state.photoLat = gps.lat; state.photoLng = gps.lng;
+    await routeToNearestPark(false);
+  }
+  if (takenAt) state.takenAt = takenAt;
+
+  let dataUrl = null;
+  try { dataUrl = await downscale(file); } catch {}
+  const resized = dataUrl !== null;
+  if (!resized) { try { dataUrl = await readAsDataUrl(file); } catch { dataUrl = null; } }
+  if (!dataUrl) {
+    $('photo-note').textContent = 'Could not read that image — try another photo.';
+    return;
+  }
+
+  state.photoB64 = dataUrl.split(',')[1];
+  $('preview').src = dataUrl;
+  $('preview').classList.remove('hidden');
+  $('analyze').classList.remove('hidden');
+
+  const bits = [];
+  if (resized) {
+    // base64 is ~4/3 of the bytes it encodes — report the size that actually
+    // goes over the wire, not the file size on disk.
+    bits.push('Shrunk ' + kb(file.size) + ' → ~' + kb(Math.ceil(state.photoB64.length * 0.75)) + ' for upload');
+  }
+  if (gps) bits.push('📍 Location read from the photo');
+  else bits.push('No location in this photo — using your current position');
+  if (takenAt) bits.push('🕑 Taken ' + takenAt);
+  $('photo-note').textContent = bits.join(' · ');
 }
 
 $('analyze').addEventListener('click', async () => {
   const btn = $('analyze'); btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '<span class="spin"></span> Analyzing…';
   try {
-    const body = { imageBase64: state.photoB64, lat: state.lat, lng: state.lng };
+    const c = coords();
+    const body = { imageBase64: state.photoB64, lat: c.lat ?? undefined, lng: c.lng ?? undefined };
     const r = await (await fetch('/api/analyze', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})).json();
     if (r.error) throw new Error(r.message || r.error);
     if (r.category) $('category').value = r.category;
@@ -288,9 +441,12 @@ $('analyze').addEventListener('click', async () => {
 
 // ---- report body ----
 function reportBody(send) {
+  const c = coords();
   return {
     parkCode: $('park').value || undefined,
-    lat: state.lat ?? undefined, lng: state.lng ?? undefined,
+    // Photo EXIF when we have it, phone position otherwise — see coords().
+    lat: c.lat ?? undefined, lng: c.lng ?? undefined,
+    observedAt: state.takenAt ?? undefined,
     category: $('category').value,
     subject: $('subject').value.trim(),
     description: $('description').value.trim(),

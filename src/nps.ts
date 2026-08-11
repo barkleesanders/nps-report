@@ -251,22 +251,49 @@ const REJECT_RE = /(error|required|please (correct|complete|enter)|invalid|try a
 /**
  * Heuristic success determination from the POST response.
  *
- * VERIFIED 2026-06-16 against a real live submission: the form returns
- * "Your email has been sent" → `confirmed`. `confirmed` requires a positive
- * phrase and no error phrase; `rejected` requires an error phrase; otherwise
- * `unknown` — callers should surface "submitted, confirmation unverified".
+ * ⚠️ NO REAL POST RESPONSE HAS EVER BEEN CAPTURED.
+ *
+ * This comment previously read "VERIFIED 2026-06-16 against a real live
+ * submission". That claim was not backed by a saved artifact: both files in
+ * `__fixtures__/` are the **GET form**, never a POST **response**. Capturing
+ * one means emailing a real National Park Service mailbox, so it has not been
+ * done. `CONFIRM_RE` below is therefore an educated guess at NPS's wording, and
+ * must be described that way until `__fixtures__/POST-RESPONSE-MISSING.md` is
+ * replaced by a real capture. See that file for the capture protocol.
+ *
+ * WHY `ok` IS NOT "we matched a phrase"
+ * -------------------------------------
+ * The regex is the weakest link, so `ok` is deliberately NOT gated on it.
+ * If NPS rewords its confirmation page, every send would fall through to
+ * `unknown`; returning ok:false there tells the visitor their report failed
+ * when the park already received it — and the only thing they can do about it
+ * is send again. There is no case number and no dedupe, so a false "failed"
+ * costs a park duplicate emails, permanently. A false "sent" costs one
+ * unreported railing.
+ *
+ * So `ok` keys off the far more robust signal — whether the form came BACK:
+ *
+ *   status >= 400                  -> rejected     (ok:false)
+ *   error phrase + form redisplayed-> rejected     (ok:false) — classic CF validation bounce
+ *   confirmation phrase            -> confirmed    (ok:true)
+ *   form redisplayed, no phrases   -> unknown      (ok:false) — form returned; likely not accepted
+ *   no form, no phrases            -> unknown      (ok:true)  -- accepted, wording unrecognised
+ *
+ * Callers MUST surface an `unknown` + ok:true as "sent, confirmation could not
+ * be verified — do not resend", never as a bare success.
  */
 export function parseSubmitResult(
   html: string,
   status: number,
 ): { ok: boolean; signal: SubmitResult["signal"] } {
   if (status >= 400) return { ok: false, signal: "rejected" };
-  const positive = CONFIRM_RE.test(html);
   const formRedisplayed = /name\s*=\s*"formMail"/i.test(html);
+  const positive = CONFIRM_RE.test(html);
   const negative = REJECT_RE.test(html) && formRedisplayed;
-  if (positive && !negative) return { ok: true, signal: "confirmed" };
   if (negative) return { ok: false, signal: "rejected" };
-  return { ok: false, signal: "unknown" };
+  if (positive) return { ok: true, signal: "confirmed" };
+  if (formRedisplayed) return { ok: false, signal: "unknown" };
+  return { ok: true, signal: "unknown" };
 }
 
 // ---- submit -----------------------------------------------------------------
@@ -334,6 +361,11 @@ export async function submitReport(
         ? "Submitted — confirmation phrase detected."
         : signal === "rejected"
           ? "Park form rejected the submission (validation/error)."
-          : "Submitted, but confirmation could not be verified from the response.",
+          : ok
+            ? // Accepted, wording unrecognised. The resend warning is the point:
+              // NPS issues no case number, so a duplicate is undetectable and
+              // permanent for the park.
+              "Sent. The park's confirmation wording wasn't recognised, so delivery could not be positively verified — please do NOT resend; check your inbox for the park's reply."
+            : "The form came back without a confirmation — the report may not have been accepted. Review and try again.",
   };
 }
