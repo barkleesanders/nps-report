@@ -62,7 +62,35 @@ export interface ParkProbe {
   reason?: ProbeReason;
   /** Final URL after redirects, when it differs from the requested one. */
   redirectedTo?: string;
+  /** The token the park currently publishes first — the heal candidate. */
+  publishedToken?: string;
+  /** How many tokens the page advertised (1 = unambiguous). */
+  publishedCount?: number;
+  /** The token we had stored, so a heal can record what it replaced. */
+  storedToken?: string;
 }
+
+/** A token replacement the sweep decided to adopt. */
+export interface TokenHeal {
+  code: string;
+  from: string;
+  to: string;
+  /** Tokens on the page; 1 means there was nothing to choose between. */
+  candidates: number;
+  healedAt: string;
+}
+
+/**
+ * SAFETY CAP on auto-healing.
+ *
+ * Adopting a new token is a write to where visitor reports get emailed, so the
+ * healer must never act on a signal that could mean "NPS redesigned the site"
+ * rather than "this park rotated its mailbox". Observed drift is ~1% (5 of 435
+ * on 2026-08-10); a redesign or a bot-block would spike it toward 100%. Above
+ * this fraction the sweep reports and heals NOTHING, which is the correct
+ * response to an instrument that has probably stopped measuring what it thinks.
+ */
+export const MAX_HEAL_FRACTION = 0.06;
 
 export interface RegistrySweep {
   checkedAt: string;
@@ -109,8 +137,34 @@ export function classifyContactsPage(
     // bot-block is a failure to MEASURE, not evidence the token is stale.
     return { code, ok: false, status, reason: "no_tokens_on_page" };
   }
-  if (published.includes(storedToken.toUpperCase())) return { code, ok: true, status };
-  return { code, ok: false, status, reason: "token_not_published" };
+  const meta = {
+    publishedToken: published[0],
+    publishedCount: published.length,
+    storedToken: storedToken.toUpperCase(),
+  };
+  if (published.includes(storedToken.toUpperCase())) return { code, ok: true, status, ...meta };
+  return { code, ok: false, status, reason: "token_not_published", ...meta };
+}
+
+/**
+ * Which published token replaces a drifted one: **the first one on the page.**
+ *
+ * That is not a guess — it is the rule the original harvester used, measured
+ * against the live site on 2026-08-10 across 29 park contacts pages:
+ *
+ *   stored === FIRST token : 24/29   (the 5 misses are exactly the drifted parks)
+ *   stored === LAST  token : 20/29   <- the control
+ *
+ * The LAST-token score is what makes this a measurement rather than a
+ * formality: if position were arbitrary, both rules would have scored the same.
+ * On 3 of the 5 drifted parks the page publishes exactly ONE token, so there is
+ * nothing to choose between at all.
+ *
+ * Returns null when the page offers nothing to adopt.
+ */
+export function healParkToken(html: string): string | null {
+  const published = extractPublishedTokens(html);
+  return published[0] ?? null;
 }
 
 /** Probe ONE park against its own published contacts page. */
@@ -210,12 +264,58 @@ export async function sweepRegistry(opts: SweepOptions = {}): Promise<RegistrySw
  * without re-running a 435-request sweep. Storage failure is logged but never
  * masks the sweep result.
  */
+export const OVERRIDES_KV_KEY = "registry:token-overrides";
+
+/** code -> the token the worker should use instead of the baked-in one. */
+export type TokenOverrides = Record<string, TokenHeal>;
+
+/**
+ * Decide which drifted parks to heal, applying the safety cap.
+ *
+ * Returns the heals to apply AND, when the cap trips, why nothing was applied —
+ * "healed nothing because everything looked broken" and "healed nothing because
+ * nothing was broken" are opposite situations and must never share a log line.
+ */
+export function planHeals(sweep: RegistrySweep): {
+  heals: TokenHeal[];
+  suppressed: boolean;
+  reason?: string;
+} {
+  const now = new Date().toISOString();
+  const drifted = sweep.failures.filter((f) => f.reason === "token_not_published");
+  if (sweep.total > 0 && drifted.length / sweep.total > MAX_HEAL_FRACTION) {
+    return {
+      heals: [],
+      suppressed: true,
+      reason: `${drifted.length}/${sweep.total} parks drifted (> ${Math.round(
+        MAX_HEAL_FRACTION * 100,
+      )}%) — that is a site-wide change, not per-park rotation; refusing to auto-adopt tokens`,
+    };
+  }
+  const heals: TokenHeal[] = [];
+  for (const f of drifted) {
+    // A drifted probe with no candidate cannot be healed — classifyContactsPage
+    // only reaches token_not_published when the page HAD tokens, so this is a
+    // belt-and-braces guard rather than an expected branch.
+    if (!f.publishedToken) continue;
+    heals.push({
+      code: f.code,
+      from: f.storedToken ?? "",
+      to: f.publishedToken,
+      candidates: f.publishedCount ?? 1,
+      healedAt: now,
+    });
+  }
+  return { heals, suppressed: false };
+}
+
 export async function runScheduledSweep(
   kv: KVNamespace | undefined,
   fetchImpl: typeof fetch = fetch,
 ): Promise<RegistrySweep> {
   const sweep = await sweepRegistry({ concurrency: 6, fetchImpl });
   const endpoint = await probeSubmitEndpoint(fetchImpl);
+  const { heals, suppressed, reason: suppressedReason } = planHeals(sweep);
   console.log(
     JSON.stringify({
       event: "registry_health_sweep",
@@ -236,6 +336,10 @@ export async function runScheduledSweep(
         .slice(0, 40)
         .map((f) => `${f.code}:${f.reason}`),
       truncated: Math.max(0, sweep.failures.length - 80),
+      healed: heals.length,
+      healedCodes: heals.slice(0, 40).map((h) => h.code),
+      healSuppressed: suppressed,
+      healSuppressedReason: suppressedReason,
     }),
   );
   if (kv) {
@@ -243,6 +347,33 @@ export async function runScheduledSweep(
       await kv.put(HEALTH_KV_KEY, JSON.stringify(sweep));
     } catch (err) {
       console.log(JSON.stringify({ event: "registry_health_persist_failed", error: String(err) }));
+    }
+    if (heals.length) {
+      try {
+        // Merge, never replace: a park healed three weeks ago must keep its
+        // override even if this week's sweep could not read its page.
+        const prev = (await kv.get<TokenOverrides>(OVERRIDES_KV_KEY, "json")) ?? {};
+        for (const h of heals) prev[h.code] = h;
+        await kv.put(OVERRIDES_KV_KEY, JSON.stringify(prev));
+        console.log(
+          JSON.stringify({
+            event: "registry_tokens_healed",
+            count: heals.length,
+            codes: heals.map((h) => h.code),
+            totalOverrides: Object.keys(prev).length,
+          }),
+        );
+      } catch (err) {
+        // Loud: the sweep found drift and could NOT fix it. Reports to those
+        // parks keep using the stale token until this succeeds.
+        console.log(
+          JSON.stringify({
+            event: "registry_heal_persist_failed",
+            error: String(err),
+            codes: heals.map((h) => h.code),
+          }),
+        );
+      }
     }
   }
   return sweep;
