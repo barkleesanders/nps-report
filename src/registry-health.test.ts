@@ -7,10 +7,12 @@ import {
   classifyContactsPage,
   extractPublishedTokens,
   healParkToken,
+  OVERRIDES_KV_KEY,
   type ParkProbe,
   planHeals,
   probePark,
   type RegistrySweep,
+  runScheduledSweep,
   sweepRegistry,
 } from "./registry-health";
 
@@ -260,5 +262,65 @@ describe("goga drift is real and documented", () => {
 
   it("and the June token is the one the June page published", () => {
     expect(extractPublishedTokens(GOGA_CONTACTS)).toContain(GOGA_JUNE_TOKEN);
+  });
+});
+
+describe("runScheduledSweep prunes redundant overrides", () => {
+  // A fake KV that records what was written.
+  function fakeKv(initial: Record<string, unknown>) {
+    const store = new Map<string, string>(
+      Object.entries(initial).map(([k, v]) => [k, JSON.stringify(v)]),
+    );
+    return {
+      kv: {
+        get: async (k: string, _t?: string) => {
+          const raw = store.get(k);
+          return raw === undefined ? null : JSON.parse(raw);
+        },
+        put: async (k: string, v: string) => {
+          store.set(k, v);
+        },
+      } as unknown as KVNamespace,
+      read: (k: string) => (store.has(k) ? JSON.parse(store.get(k) as string) : null),
+    };
+  }
+
+  // Every park's page publishes exactly the token already baked into the
+  // registry -> the whole sweep is ok, so every override is now dead weight.
+  const allHealthy = (async (u: string | URL | Request) => {
+    const code = String(u).match(/nps\.gov\/([^/]+)\//)?.[1] ?? "";
+    const tok = getPark(code)?.recipientToken;
+    return new Response(tok ? `href="sendemail.cfm?o=${tok}"` : "<html>none</html>", {
+      status: 200,
+    });
+  }) as unknown as typeof fetch;
+
+  it("drops an override once the baked-in token matches what the park publishes", async () => {
+    const goga = getPark("goga")?.recipientToken ?? "";
+    const { kv, read } = fakeKv({
+      [OVERRIDES_KV_KEY]: {
+        goga: { code: "goga", from: "OLD", to: goga, candidates: 1, healedAt: "x" },
+      },
+    });
+    await runScheduledSweep(kv, allHealthy);
+    expect(read(OVERRIDES_KV_KEY)).toEqual({});
+  });
+
+  // THE control: pruning on anything other than a CONFIRMED ok would mean one
+  // bad-network week silently drops a live override and reverts those parks to
+  // a stale mailbox.
+  it("keeps an override for a park it could not read this run", async () => {
+    const goga = getPark("goga")?.recipientToken ?? "";
+    const gogaUnreadable = (async (u: string | URL | Request) => {
+      if (String(u).includes("/goga/")) throw new Error("offline");
+      return allHealthy(u);
+    }) as unknown as typeof fetch;
+    const { kv, read } = fakeKv({
+      [OVERRIDES_KV_KEY]: {
+        goga: { code: "goga", from: "OLD", to: goga, candidates: 1, healedAt: "x" },
+      },
+    });
+    await runScheduledSweep(kv, gogaUnreadable);
+    expect(Object.keys(read(OVERRIDES_KV_KEY) ?? {})).toEqual(["goga"]);
   });
 });
