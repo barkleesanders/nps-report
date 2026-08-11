@@ -6,7 +6,11 @@ import { getPark } from "./parks";
 import {
   classifyContactsPage,
   extractPublishedTokens,
+  healParkToken,
+  type ParkProbe,
+  planHeals,
   probePark,
+  type RegistrySweep,
   sweepRegistry,
 } from "./registry-health";
 
@@ -133,5 +137,82 @@ describe("sweepRegistry", () => {
     const sweep = await sweepRegistry({ limit: 2, fetchImpl: impl, concurrency: 2 });
     expect(sweep.total).toBe(2);
     expect(sweep.partial).toBe(true);
+  });
+});
+
+describe("healParkToken — which published token replaces a drifted one", () => {
+  it("adopts the FIRST token on the page", () => {
+    const first = extractPublishedTokens(GOGA_CONTACTS)[0];
+    expect(healParkToken(GOGA_CONTACTS)).toBe(first);
+  });
+
+  // CONTROL that makes "first" a measurement, not a formality. The real goga
+  // page publishes 5 tokens; if first and last were the same value, the
+  // position rule would be untested by the assertion above. Measured live
+  // 2026-08-10 across 29 parks: stored===FIRST 24/29, stored===LAST 20/29 —
+  // the gap is why this rule was chosen.
+  it("the page really does offer a choice (first !== last)", () => {
+    const toks = extractPublishedTokens(GOGA_CONTACTS);
+    expect(toks.length).toBeGreaterThan(1);
+    expect(toks[0]).not.toBe(toks[toks.length - 1]);
+  });
+
+  it("refuses to invent a token when the page has none", () => {
+    expect(healParkToken("<html>maintenance</html>")).toBeNull();
+    expect(healParkToken("")).toBeNull();
+  });
+});
+
+describe("planHeals — the safety cap", () => {
+  const drifted = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      code: `p${i}`,
+      ok: false as const,
+      reason: "token_not_published" as const,
+      storedToken: "AAAA",
+      publishedToken: "BBBB",
+      publishedCount: 1,
+    }));
+  const sweep = (total: number, fails: ParkProbe[]): RegistrySweep => ({
+    checkedAt: new Date(0).toISOString(),
+    total,
+    ok: total - fails.length,
+    drifted: fails.filter((f) => f.reason === "token_not_published").length,
+    unreadable: fails.filter((f) => f.reason !== "token_not_published").length,
+    failures: fails,
+    durationMs: 1,
+    partial: false,
+  });
+
+  it("heals ordinary per-park rotation", () => {
+    const plan = planHeals(sweep(435, drifted(5)));
+    expect(plan.suppressed).toBe(false);
+    expect(plan.heals.map((h) => h.code)).toEqual(["p0", "p1", "p2", "p3", "p4"]);
+    expect(plan.heals[0]).toMatchObject({ from: "AAAA", to: "BBBB", candidates: 1 });
+  });
+
+  // THE control that matters most: a site-wide change must NOT be auto-adopted.
+  // Without this, an NPS redesign would rewrite every park's mailbox in one
+  // cron run — the single most damaging thing this feature could do.
+  it("refuses to heal when drift is site-wide, and says why", () => {
+    const plan = planHeals(sweep(435, drifted(200)));
+    expect(plan.suppressed).toBe(true);
+    expect(plan.heals).toEqual([]);
+    expect(plan.reason).toMatch(/site-wide/);
+  });
+
+  it("never heals a park it could not measure", () => {
+    const unreadable: ParkProbe[] = [
+      { code: "x", ok: false, reason: "no_tokens_on_page", status: 200 },
+      { code: "y", ok: false, reason: "network_error" },
+      { code: "z", ok: false, reason: "http_error", status: 404 },
+    ];
+    expect(planHeals(sweep(435, unreadable)).heals).toEqual([]);
+  });
+
+  it("heals nothing when nothing drifted (and does not report suppression)", () => {
+    const plan = planHeals(sweep(435, []));
+    expect(plan.heals).toEqual([]);
+    expect(plan.suppressed).toBe(false);
   });
 });

@@ -25,9 +25,11 @@ import { NpsReportError, type ReportInput, submitReport } from "./nps";
 import { getPark, listParks, publicPark, registryHarvestedAt } from "./parks";
 import {
   HEALTH_KV_KEY,
+  OVERRIDES_KV_KEY,
   type RegistrySweep,
   runScheduledSweep,
   sweepRegistry,
+  type TokenOverrides,
 } from "./registry-health";
 import { faviconSvg, renderAbout, renderApp } from "./ui";
 
@@ -252,6 +254,41 @@ app.post("/api/report", async (c) => {
     );
   }
 
+  // Apply a healed token if the weekly sweep found this park's baked-in one is
+  // no longer the one it publishes. parks.data.json ships inside the bundle and
+  // cannot be rewritten at runtime, so KV is the only place a self-heal can
+  // land — and this is the one place it has to be consulted, because it is
+  // where a report gets addressed. An explicitly-supplied recipientToken is
+  // NEVER overridden: the caller asked for that mailbox by name.
+  let healedFrom: string | undefined;
+  if (parkCode && resolvedBy !== "explicit" && c.env.REGISTRY_HEALTH) {
+    try {
+      const overrides = await c.env.REGISTRY_HEALTH.get<TokenOverrides>(OVERRIDES_KV_KEY, "json");
+      const hit = overrides?.[parkCode];
+      if (hit?.to && hit.to !== recipientToken) {
+        healedFrom = recipientToken;
+        recipientToken = hit.to;
+        console.log(
+          JSON.stringify({
+            event: "recipient_token_override_applied",
+            park: parkCode,
+            healedAt: hit.healedAt,
+          }),
+        );
+      }
+    } catch (err) {
+      // Fail OPEN to the baked-in token: a KV blip must not stop a visitor
+      // filing a report. Logged so a persistent failure is visible.
+      console.log(
+        JSON.stringify({
+          event: "recipient_token_override_read_failed",
+          park: parkCode,
+          error: String(err),
+        }),
+      );
+    }
+  }
+
   const input: ReportInput = {
     recipientToken,
     referrerPath,
@@ -276,7 +313,16 @@ app.post("/api/report", async (c) => {
       status: result.status,
       note: result.note,
       category: normalizeCategory(body.category),
-      park: parkCode ? { code: parkCode, name: parkName, resolvedBy } : undefined,
+      park: parkCode
+        ? {
+            code: parkCode,
+            name: parkName,
+            resolvedBy,
+            // Present only when the weekly sweep had re-harvested this park's
+            // mailbox; makes a self-heal visible in the response, not silent.
+            ...(healedFrom ? { tokenHealed: true } : {}),
+          }
+        : undefined,
       prepared: { endpoint: result.prepared.endpoint, fields: result.prepared.fields },
     });
   } catch (err) {
@@ -329,10 +375,20 @@ app.get("/api/registry/health", async (c) => {
       503,
     );
   }
+  let overrides: TokenOverrides | null = null;
+  if (c.env.REGISTRY_HEALTH) {
+    try {
+      overrides = await c.env.REGISTRY_HEALTH.get<TokenOverrides>(OVERRIDES_KV_KEY, "json");
+    } catch {
+      overrides = null;
+    }
+  }
   const ageHours = Math.round((Date.now() - Date.parse(stored.checkedAt)) / 36e5);
   return c.json({
     source: "last-scheduled-sweep",
     harvestedAt,
+    // Parks the cron has re-harvested since the last `npm run harvest`.
+    healedParks: overrides ? Object.keys(overrides).sort() : [],
     ageHours,
     // A sweep older than ~2 cron periods means the cron itself stopped.
     stale: ageHours > 24 * 15,
