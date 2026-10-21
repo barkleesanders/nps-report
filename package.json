@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --config ./wrangler.toml --env=",
-    "deploy": "wrangler deploy --config ./wrangler.toml --env=",
+    "deploy": "npm run check && wrangler deploy --config ./wrangler.toml --env=",
     "tail": "wrangler tail",
     "types": "wrangler types --config ./wrangler.toml --env=",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.cli.json",
@@ -16,7 +16,8 @@
     "harvest": "tsx scripts/harvest-parks.ts",
     "report": "tsx scripts/report.ts",
     "gate:release": "npm run lint && npm run typecheck && npm test && npm audit --ignore-scripts --audit-level=low",
-    "check": "wrangler deploy --dry-run --config ./wrangler.toml --env= --outdir dist"
+    "check": "wrangler deploy --dry-run --config ./wrangler.toml --env= --outdir dist && npm run test:harness",
+    "test:harness": "node scripts/runtime-harness.mjs"
   },
   "dependencies": {
     "hono": "^4.13.13"
