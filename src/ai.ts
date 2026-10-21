@@ -93,15 +93,12 @@ Look at the photo and respond with ONLY a JSON object (no prose):
 {"category": "<one of: ${NPS_CATEGORIES.join(" | ")}>", "subject": "<short title, max 80 chars>", "description": "<2-3 factual sentences describing the issue>"}
 Choose "Facilities" for broken infrastructure (trails, restrooms, signs, railings, roads) and "Safety" for hazards. Do not invent details you cannot see.`;
 
-// workers-types models chat `content` as a plain string; gemma-4-26b also
-// accepts the multimodal [{type:text},{type:image_url}] array (verified against
-// the working improvebayarea Worker). Cast the receiver (NOT a detached method —
-// detaching ai.run loses `this` and the binding throws "#options" undefined).
-type AiLike = { run: (model: string, inputs: unknown, options?: unknown) => Promise<unknown> };
-
 /** Classify a photo into an NPS report category + draft subject/description. */
-export async function analyzePhoto(ai: Ai, imageBytes: Uint8Array): Promise<AiSuggestion> {
-  const raw = await (ai as unknown as AiLike).run(VISION_MODEL, {
+export async function analyzePhoto(
+  ai: Pick<Ai, "run">,
+  imageBytes: Uint8Array,
+): Promise<AiSuggestion> {
+  const raw = await ai.run(VISION_MODEL, {
     messages: [
       {
         role: "user",
@@ -112,7 +109,8 @@ export async function analyzePhoto(ai: Ai, imageBytes: Uint8Array): Promise<AiSu
       },
     ],
     max_tokens: 700,
-    reasoning_effort: "low",
+    // Gemma's native model schema has a thinking switch, not effort levels.
+    chat_template_kwargs: { enable_thinking: false },
   });
   const parsed = extractJson(extractText(raw)) ?? {};
   return {
@@ -130,10 +128,10 @@ export async function analyzePhoto(ai: Ai, imageBytes: Uint8Array): Promise<AiSu
 
 /** Tidy a user's raw subject/description for a given category. */
 export async function rewriteReportText(
-  ai: Ai,
+  ai: Pick<Ai, "run">,
   input: { subject: string; description: string; category: NpsCategory },
 ): Promise<{ subject: string; description: string }> {
-  const raw = await (ai as unknown as AiLike).run(TEXT_MODEL, {
+  const raw = await ai.run(TEXT_MODEL, {
     messages: [
       {
         role: "system",
