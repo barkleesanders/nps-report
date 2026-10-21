@@ -45,7 +45,7 @@ const PAGE_CSP =
   "base-uri 'self'; frame-ancestors 'none'; object-src 'none'";
 
 interface Env {
-  AI: Ai;
+  AI?: Ai;
   SERVICE_NAME?: string;
   DEFAULT_FROM_NAME?: string;
   DEFAULT_FROM_EMAIL?: string;

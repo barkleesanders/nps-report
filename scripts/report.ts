@@ -10,6 +10,7 @@
 //   npm run report -- --lat 37.836 --lng -122.466 --description "..." \
 //     --email you@example.com --send
 
+import process from "node:process";
 import { nearestPark } from "../src/geo";
 import { submitReport } from "../src/nps";
 import { getPark, listParks } from "../src/parks";
@@ -44,7 +45,7 @@ async function main() {
   if (f.help === true || f.list === true) {
     if (f.list === true) {
       const parks = listParks().map((p) => `  ${p.code.padEnd(8)} ${p.name}`);
-      console.log("Registered parks:\n" + parks.join("\n"));
+      console.log(`Registered parks:\n${parks.join("\n")}`);
       return;
     }
     console.log(
