@@ -1,4 +1,5 @@
 name = "nps-report"
+workers_dev = true
 preview_urls = false
 main = "src/index.ts"
 compatibility_date = "2026-06-01"
@@ -38,3 +39,7 @@ crons = ["17 9 * * 1"]
 [[kv_namespaces]]
 binding = "REGISTRY_HEALTH"
 id = "d108754c2da44d74a9461ae87fd2a067"
+
+# Every Wrangler build/upload runs the same release checks as CI.
+[build]
+command = "npm run gate:release"

@@ -1,8 +1,8 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.14/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.3/schema.json",
   "files": {
     "ignoreUnknown": true,
-    "includes": ["src/**", "scripts/**", "!src/__fixtures__", "!**/*.json"]
+    "includes": ["src/**", "scripts/**", "vitest.config.ts", "!src/__fixtures__", "!**/*.json"]
   },
   "formatter": {
     "enabled": true,
@@ -12,8 +12,23 @@
     "lineEnding": "lf"
   },
   "javascript": {
-    "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" }
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
   },
-  "linter": { "enabled": true, "rules": { "recommended": true } },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended"
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
 }

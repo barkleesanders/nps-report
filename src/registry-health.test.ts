@@ -75,7 +75,7 @@ describe("classifyContactsPage", () => {
 });
 
 describe("probePark", () => {
-  const html = (body: string, status = 200, url = "https://www.nps.gov/goga/contacts.htm") =>
+  const html = (body: string, status = 200, _url = "https://www.nps.gov/goga/contacts.htm") =>
     (async () => new Response(body, { status })) as unknown as typeof fetch;
 
   it("requests the park's own contacts page and follows redirects", async () => {
