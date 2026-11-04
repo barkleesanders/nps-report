@@ -18,8 +18,23 @@ DEFAULT_FROM_EMAIL = ""
 [ai]
 binding = "AI"
 
+# Native observability (Cloudflare-first, no external/paid products):
+# Workers Logs + Workers Traces, persisted at full head sampling on this
+# low-traffic site. Errors also feed Cloudflare Issues -> the cf-issues
+# auto-fix loop. Guarded by `npm run lint:observability`.
 [observability]
 enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true
+head_sampling_rate = 1
+
+[observability.traces]
+enabled = true
+persist = true
+head_sampling_rate = 1
 
 [cache]
 enabled = true
