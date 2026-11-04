@@ -16,7 +16,8 @@
     "harvest": "tsx scripts/harvest-parks.ts",
     "report": "tsx scripts/report.ts",
     "gate:release": "npm run lint && npm run typecheck && npm test && npm audit --ignore-scripts --audit-level=low",
-    "check": "wrangler deploy --dry-run --config ./wrangler.toml --env= --outdir dist && npm run test:harness",
+    "check": "npm run lint:observability && wrangler deploy --dry-run --config ./wrangler.toml --env= --outdir dist && npm run test:harness",
+    "lint:observability": "node scripts/check-observability.mjs",
     "test:harness": "node scripts/runtime-harness.mjs"
   },
   "dependencies": {

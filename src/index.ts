@@ -32,6 +32,7 @@ import {
   type TokenOverrides,
 } from "./registry-health";
 import { faviconSvg, renderAbout, renderApp } from "./ui";
+import { wideEvent } from "./wide-event";
 
 // Strict CSP for the API + a slightly looser one for the HTML page (Google
 // Fonts + the page's own inline script/styles; no third-party JS).
@@ -55,6 +56,11 @@ interface Env {
 }
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Wide-event logging: one canonical JSON http_request event per request
+// to Workers Logs (see src/wide-event.ts). Outermost middleware so every
+// route — including error responses — is observed exactly once.
+app.use("*", wideEvent);
 
 // Security headers on every response (manual — no invented framework API).
 app.use("*", async (c, next) => {
